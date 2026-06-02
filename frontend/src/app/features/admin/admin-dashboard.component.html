@@ -1,0 +1,140 @@
+<div class="page" style="max-width: 1200px;">
+  <h1>Admin dashboard</h1>
+  @if (loading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  <mat-tab-group>
+    <!-- PROGRESS -->
+    <mat-tab label="Progress">
+      <div style="padding-top:16px;">
+        @if (progress(); as p) {
+          <p style="color:#666;">
+            Totals — training: {{ totalFor('training') }}, pilot: {{ totalFor('pilot') }}, main: {{ totalFor('main') }}
+          </p>
+          <table mat-table [dataSource]="p.perAnnotator" class="mat-elevation-z1">
+            <ng-container matColumnDef="annotator">
+              <th mat-header-cell *matHeaderCellDef>Annotator</th>
+              <td mat-cell *matCellDef="let row">
+                {{ row.displayName }}
+                <span style="color:#999; font-size:12px;">({{ row.role }})</span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="training">
+              <th mat-header-cell *matHeaderCellDef>Training</th>
+              <td mat-cell *matCellDef="let row">{{ cell(row, 'training') }}</td>
+            </ng-container>
+            <ng-container matColumnDef="pilot">
+              <th mat-header-cell *matHeaderCellDef>Pilot</th>
+              <td mat-cell *matCellDef="let row">{{ cell(row, 'pilot') }}</td>
+            </ng-container>
+            <ng-container matColumnDef="main">
+              <th mat-header-cell *matHeaderCellDef>Main</th>
+              <td mat-cell *matCellDef="let row">{{ cell(row, 'main') }}</td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="progressColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: progressColumns"></tr>
+          </table>
+        }
+      </div>
+    </mat-tab>
+
+    <!-- DATASET / IMPORT / PHASES -->
+    <mat-tab label="Dataset">
+      <div style="padding-top:16px;">
+        <mat-card style="margin-bottom:16px;">
+          <mat-card-header><mat-card-title>Import corpus CSV</mat-card-title></mat-card-header>
+          <mat-card-content>
+            <div
+              class="drop-zone"
+              [class.drag]="dragging()"
+              (dragover)="$event.preventDefault(); dragging.set(true)"
+              (dragleave)="dragging.set(false)"
+              (drop)="onDrop($event)"
+              (click)="fileInput.click()"
+            >
+              <mat-icon style="font-size:36px; height:36px; width:36px;">upload_file</mat-icon>
+              <p>Drag &amp; drop the Pragyan corpus CSV here, or click to choose a file.</p>
+              <input #fileInput type="file" accept=".csv" hidden (change)="onFilePick($event)" />
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card style="margin-bottom:16px;">
+          <mat-card-header><mat-card-title>Bulk phase assignment</mat-card-title></mat-card-header>
+          <mat-card-content style="display:flex; align-items:center; gap:12px; padding-top:16px;">
+            <mat-select [(ngModel)]="bulkPhase" style="width:200px;">
+              @for (ph of phases; track ph) { <mat-option [value]="ph">{{ ph }}</mat-option> }
+            </mat-select>
+            <button mat-stroked-button (click)="bulkAssign()">Apply to all requirements</button>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card>
+          <mat-card-header><mat-card-title>Requirements ({{ requirements().length }})</mat-card-title></mat-card-header>
+          <mat-card-content>
+            <table style="width:100%; border-collapse:collapse;">
+              <thead>
+                <tr style="text-align:left; color:#666; font-size:13px;">
+                  <th style="padding:6px 8px;">Req ID</th>
+                  <th style="padding:6px 8px;">Description</th>
+                  <th style="padding:6px 8px;">Pragyan</th>
+                  <th style="padding:6px 8px;">Phase</th>
+                  <th style="padding:6px 8px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of requirements(); track r._id) {
+                  <tr class="req-row" style="border-top:1px solid #eee;">
+                    <td style="padding:6px 8px; font-weight:500;">{{ r.reqId }}</td>
+                    <td style="padding:6px 8px; max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                      {{ r.nlDescription }}
+                    </td>
+                    <td style="padding:6px 8px;">
+                      @if (r.pragyanIncomp === 1) {
+                        <mat-chip class="chip-incomplete">incomp</mat-chip>
+                      } @else {
+                        <span style="color:#999;">—</span>
+                      }
+                    </td>
+                    <td style="padding:6px 8px;">
+                      <mat-select [value]="r.phase" (selectionChange)="setPhase(r, $event.value)" style="width:130px;">
+                        @for (ph of phases; track ph) { <mat-option [value]="ph">{{ ph }}</mat-option> }
+                      </mat-select>
+                    </td>
+                    <td style="padding:6px 8px;">
+                      <button mat-stroked-button (click)="adjudicate(r)">
+                        <mat-icon>gavel</mat-icon> Adjudicate
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </mat-tab>
+
+    <!-- EXPORT -->
+    <mat-tab label="Export">
+      <div style="padding-top:16px;">
+        <mat-card>
+          <mat-card-header><mat-card-title>Analysis-ready export</mat-card-title></mat-card-header>
+          <mat-card-content>
+            <p style="color:#666;">
+              One record per (requirement, annotator) with flattened slots, the gold standard, and the
+              Pragyan label joined in. Feeds the Python pipeline (Kappa + similarity).
+            </p>
+            <div style="display:flex; gap:12px;">
+              <button mat-raised-button color="primary" (click)="export('json')">
+                <mat-icon>download</mat-icon> Export JSON
+              </button>
+              <button mat-raised-button color="primary" (click)="export('csv')">
+                <mat-icon>download</mat-icon> Export CSV
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</div>

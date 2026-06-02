@@ -1,0 +1,42 @@
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+  background: #fafafa;
+}
+
+* { box-sizing: border-box; }
+
+.spacer { flex: 1 1 auto; }
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.full-width { width: 100%; }
+
+a { color: inherit; }
+
+/* Slot / status colour helpers */
+.chip-incomplete { background-color: #ffcdd2 !important; color: #b71c1c !important; }
+.chip-complete { background-color: #c8e6c9 !important; color: #1b5e20 !important; }
+
+.status-submitted { color: #1b5e20; }
+.status-draft { color: #e65100; }
+.status-not_started { color: #757575; }
+
+.disagreement { background-color: #fff3e0; }
+
+.warn-banner {
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  color: #6d4c00;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

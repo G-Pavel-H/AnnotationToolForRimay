@@ -1,0 +1,159 @@
+<div class="page" style="max-width: 1300px;">
+  @if (loading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  @if (requirement(); as req) {
+    <div style="display:flex; align-items:center; gap:12px; margin: 8px 0 16px;">
+      <button mat-icon-button (click)="back()"><mat-icon>arrow_back</mat-icon></button>
+      <h2 style="margin:0;">Adjudicate {{ req.reqId }}</h2>
+      <mat-chip-set><mat-chip>{{ req.phase }}</mat-chip></mat-chip-set>
+      @if (req.pragyanIncomp === 1) {
+        <mat-chip class="chip-incomplete">Pragyan: incomplete</mat-chip>
+      } @else {
+        <mat-chip class="chip-complete">Pragyan: complete</mat-chip>
+      }
+    </div>
+
+    <mat-card style="margin-bottom:16px;">
+      <mat-card-content style="padding-top:16px;">
+        <p style="font-size:16px;">{{ req.nlDescription }}</p>
+      </mat-card-content>
+    </mat-card>
+
+    @if (annotations().length === 0) {
+      <p style="color:#888;">No annotations submitted yet for this requirement.</p>
+    } @else {
+      <mat-card style="margin-bottom:16px;">
+        <mat-card-header>
+          <mat-card-title>Side-by-side comparison</mat-card-title>
+          <mat-card-subtitle>
+            Disagreed slots are highlighted. Free-text conversions are shown for reference only
+            (exported individually, not reconciled).
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <table>
+            <thead>
+              <tr>
+                <th>Slot</th>
+                @for (a of annotations(); track a._id) {
+                  <th>{{ annotatorName(a) }}</th>
+                }
+                <th class="gold-col">Gold</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of slotFields; track f.key) {
+                <tr [class.disagreement]="isDisagreement(f.key)">
+                  <td class="slot-name">
+                    {{ f.label }}
+                    @if (f.mandatory) { <span style="color:#b71c1c;">*</span> }
+                  </td>
+                  @for (a of annotations(); track a._id) {
+                    <td class="val-{{ slotValue(a, f.key) }}">{{ slotValue(a, f.key) }}</td>
+                  }
+                  <td class="gold-col">
+                    <mat-select [(ngModel)]="goldSlots[f.key]" style="width:120px;">
+                      <mat-option value="present">present</mat-option>
+                      <mat-option value="implied">implied</mat-option>
+                      <mat-option value="missing">missing</mat-option>
+                    </mat-select>
+                  </td>
+                </tr>
+              }
+
+              <tr>
+                <td class="slot-name">Condition type</td>
+                @for (a of annotations(); track a._id) {
+                  <td>{{ a.conditionType }}</td>
+                }
+                <td class="gold-col">
+                  <mat-select [(ngModel)]="goldConditionType" style="width:140px;">
+                    <mat-option value="none">none</mat-option>
+                    <mat-option value="precondition">precondition</mat-option>
+                    <mat-option value="trigger">trigger</mat-option>
+                    <mat-option value="temporal">temporal</mat-option>
+                  </mat-select>
+                </td>
+              </tr>
+
+              <tr>
+                <td class="slot-name">Pattern</td>
+                @for (a of annotations(); track a._id) {
+                  <td>{{ a.patternNumber ?? '—' }}</td>
+                }
+                <td class="gold-col">—</td>
+              </tr>
+
+              <tr>
+                <td class="slot-name">Non-atomic</td>
+                @for (a of annotations(); track a._id) {
+                  <td>{{ a.nonAtomic ? ('yes (' + (a.nSystemResponses ?? '?') + ')') : 'no' }}</td>
+                }
+                <td class="gold-col">—</td>
+              </tr>
+
+              <tr>
+                <td class="slot-name">Verdict</td>
+                @for (a of annotations(); track a._id) {
+                  <td>
+                    <mat-chip [class.chip-incomplete]="annotatorVerdict(a)" [class.chip-complete]="!annotatorVerdict(a)">
+                      {{ annotatorVerdict(a) ? 'Incomplete' : 'Complete' }}
+                    </mat-chip>
+                  </td>
+                }
+                <td class="gold-col">
+                  <mat-chip [class.chip-incomplete]="isGoldIncomplete" [class.chip-complete]="!isGoldIncomplete">
+                    {{ isGoldIncomplete ? 'Incomplete' : 'Complete' }}
+                  </mat-chip>
+                </td>
+              </tr>
+
+              <tr>
+                <td class="slot-name">Rimay / notes</td>
+                @for (a of annotations(); track a._id) {
+                  <td>
+                    <button mat-button (click)="toggleExpand(a)">
+                      <mat-icon>{{ isExpanded(a) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                      {{ isExpanded(a) ? 'hide' : 'show' }}
+                    </button>
+                    @if (isExpanded(a)) {
+                      <div style="margin-top:6px;">
+                        <pre style="white-space:pre-wrap; background:#f5f5f5; padding:8px; border-radius:4px; font-size:12px;">{{ a.rimayText || '(empty)' }}</pre>
+                        @if (a.notes) {
+                          <p style="font-size:12px; color:#555;"><strong>Notes:</strong> {{ a.notes }}</p>
+                        }
+                      </div>
+                    }
+                  </td>
+                }
+                <td class="gold-col"></td>
+              </tr>
+            </tbody>
+          </table>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card style="margin-bottom:32px;">
+        <mat-card-header><mat-card-title>Gold standard</mat-card-title></mat-card-header>
+        <mat-card-content style="padding-top:16px;">
+          <p style="color:#666;">
+            Gold verdict (computed from actor/modal/action):
+            <strong>{{ isGoldIncomplete ? 'Incomplete' : 'Complete' }}</strong>.
+            Disagreement on any slot: <strong>{{ hadAnyDisagreement() ? 'yes' : 'no' }}</strong>.
+          </p>
+          <mat-form-field class="full-width" appearance="outline">
+            <mat-label>Canonical Rimay (optional)</mat-label>
+            <textarea matInput rows="3" [(ngModel)]="canonicalRimay"></textarea>
+          </mat-form-field>
+          <mat-form-field class="full-width" appearance="outline">
+            <mat-label>Adjudication notes</mat-label>
+            <textarea matInput rows="2" [(ngModel)]="notes"></textarea>
+          </mat-form-field>
+          <button mat-raised-button color="primary" (click)="save()" [disabled]="saving()">
+            <mat-icon>save</mat-icon> Save gold standard
+          </button>
+        </mat-card-content>
+      </mat-card>
+    }
+  }
+</div>

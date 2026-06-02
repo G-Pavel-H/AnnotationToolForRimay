@@ -1,0 +1,28 @@
+{
+  "name": "rimay-annotation-backend",
+  "version": "1.0.0",
+  "description": "Backend for the Rimay annotation web app",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "seed": "node scripts/seed_users.js",
+    "import": "node scripts/import_requirements.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "csv-parse": "^5.5.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.5.1",
+    "multer": "^2.1.1"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.0.0",
+    "supertest": "^7.0.0"
+  }
+}

@@ -1,0 +1,234 @@
+<div class="page" style="max-width: 1300px;">
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  }
+
+  @if (requirement(); as req) {
+    <!-- Header -->
+    <div style="display:flex; align-items:center; gap:12px; margin: 8px 0 16px;">
+      <button mat-icon-button (click)="back()" matTooltip="Back to dashboard">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <h2 style="margin:0;">{{ req.reqId }}</h2>
+      <mat-chip-set>
+        <mat-chip>{{ req.phase }}</mat-chip>
+      </mat-chip-set>
+      <span style="color:#666;">{{ positionLabel() }}</span>
+      <span class="spacer"></span>
+      <span class="save-state">
+        @if (saving()) { Saving… }
+        @else if (lastSavedAt()) { Saved {{ lastSavedAt() | date: 'shortTime' }} }
+      </span>
+      <mat-chip [class.status-submitted]="status() === 'submitted'" [class.status-draft]="status() === 'draft'">
+        {{ status() === 'submitted' ? 'Submitted' : 'Draft' }}
+      </mat-chip>
+      <button mat-stroked-button (click)="toggleRef()">
+        <mat-icon>menu_book</mat-icon>
+        {{ refOpen() ? 'Hide guide' : 'Show guide' }}
+      </button>
+    </div>
+
+    <div class="editor-grid">
+      <!-- MAIN COLUMN -->
+      <div class="main-col">
+        <!-- Requirement panel -->
+        <mat-card style="margin-bottom:16px;">
+          <mat-card-header>
+            <mat-card-title>Requirement</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <p style="font-size:16px; line-height:1.5;">{{ req.nlDescription }}</p>
+            <button mat-button (click)="showFullText.set(!showFullText())">
+              <mat-icon>{{ showFullText() ? 'expand_less' : 'expand_more' }}</mat-icon>
+              {{ showFullText() ? 'Hide full text' : 'Show full source text' }}
+            </button>
+            @if (showFullText()) {
+              <pre style="white-space:pre-wrap; background:#f5f5f5; padding:12px; border-radius:6px; font-size:13px;">{{ req.nlText }}</pre>
+            }
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Conversion field -->
+        <mat-card style="margin-bottom:16px;">
+          <mat-card-header>
+            <mat-card-title>Rimay conversion</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="quick-btns">
+              @for (q of quickInserts; track q.token) {
+                <button mat-stroked-button (click)="insertToken(q.token)" type="button">
+                  {{ q.label }}
+                </button>
+              }
+            </div>
+            <mat-form-field class="full-width" appearance="outline">
+              <mat-label>Rimay text</mat-label>
+              <textarea
+                #rimayArea
+                matInput
+                class="rimay"
+                rows="4"
+                [(ngModel)]="rimayText"
+                (ngModelChange)="onChange()"
+                placeholder="Write the Rimay conversion. Use the buttons above to insert <MISSING_*> placeholders."
+              ></textarea>
+            </mat-form-field>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Slot grid -->
+        <mat-card style="margin-bottom:16px;">
+          <mat-card-header>
+            <mat-card-title>Structural slots</mat-card-title>
+            <mat-card-subtitle>Present / Implied / Missing — actor, modal verb and action are mandatory</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            @for (f of slotFields; track f.key) {
+              <div class="slot-row">
+                <span class="slot-label">
+                  {{ f.label }}
+                  @if (f.mandatory) { <span class="mandatory-star" matTooltip="Mandatory slot">*</span> }
+                </span>
+                <mat-button-toggle-group
+                  [value]="slots[f.key]"
+                  (change)="setSlot(f.key, $event.value)"
+                  hideSingleSelectionIndicator
+                >
+                  <mat-button-toggle value="present">Present</mat-button-toggle>
+                  <mat-button-toggle value="implied">Implied</mat-button-toggle>
+                  <mat-button-toggle value="missing">Missing</mat-button-toggle>
+                </mat-button-toggle-group>
+              </div>
+            }
+
+            <!-- Condition type -->
+            <div class="slot-row" style="margin-top:8px;">
+              <span class="slot-label">Condition type</span>
+              <mat-form-field appearance="outline" style="width:260px;" subscriptSizing="dynamic">
+                <mat-select
+                  [(ngModel)]="conditionType"
+                  (ngModelChange)="onChange()"
+                  [disabled]="!conditionEnabled"
+                >
+                  <mat-option value="none">None / NA</mat-option>
+                  <mat-option value="precondition">Precondition</mat-option>
+                  <mat-option value="trigger">Trigger</mat-option>
+                  <mat-option value="temporal">Temporal</mat-option>
+                </mat-select>
+              </mat-form-field>
+              @if (!conditionEnabled) {
+                <span style="font-size:12px; color:#888;">enabled when Condition is Present or Implied</span>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Pattern + atomicity -->
+        <mat-card style="margin-bottom:16px;">
+          <mat-card-content style="padding-top:16px;">
+            <div class="slot-row">
+              <span class="slot-label">Pattern</span>
+              <mat-form-field appearance="outline" style="width:320px;" subscriptSizing="dynamic">
+                <mat-label>Rimay pattern (1–10)</mat-label>
+                <mat-select [(ngModel)]="patternNumber" (ngModelChange)="onChange()">
+                  <mat-option [value]="null">— none —</mat-option>
+                  @for (p of patterns; track p.n) {
+                    <mat-option [value]="p.n">{{ p.name }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            </div>
+
+            <div class="slot-row">
+              <mat-checkbox [(ngModel)]="nonAtomic" (ngModelChange)="onChange()">
+                Non-atomic (multiple system responses)
+              </mat-checkbox>
+              @if (nonAtomic) {
+                <mat-form-field appearance="outline" style="width:200px;" subscriptSizing="dynamic">
+                  <mat-label># system responses</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    min="2"
+                    [(ngModel)]="nSystemResponses"
+                    (ngModelChange)="onChange()"
+                  />
+                </mat-form-field>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Verdict + consistency -->
+        <mat-card style="margin-bottom:16px;">
+          <mat-card-content style="padding-top:16px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="font-weight:500;">Computed verdict:</span>
+              <mat-chip [class.chip-incomplete]="isIncomplete" [class.chip-complete]="!isIncomplete">
+                <mat-icon style="font-size:18px; height:18px; width:18px;">
+                  {{ isIncomplete ? 'error_outline' : 'check_circle_outline' }}
+                </mat-icon>
+                {{ isIncomplete ? 'Incomplete' : 'Complete' }}
+              </mat-chip>
+              <span style="font-size:12px; color:#888;">
+                computed from the slot grid (server value is authoritative on save)
+              </span>
+            </div>
+
+            @if (consistencyWarnings.length) {
+              <div class="warn-banner" style="margin-top:12px; flex-direction:column; align-items:flex-start;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <mat-icon>warning_amber</mat-icon>
+                  <strong>Consistency check (does not block submission)</strong>
+                </div>
+                <ul style="margin:4px 0 0; padding-left:20px;">
+                  @for (w of consistencyWarnings; track w) { <li>{{ w }}</li> }
+                </ul>
+              </div>
+            }
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Notes -->
+        <mat-card style="margin-bottom:16px;">
+          <mat-card-content style="padding-top:16px;">
+            <mat-form-field class="full-width" appearance="outline">
+              <mat-label>Notes / judgment calls</mat-label>
+              <textarea matInput rows="3" [(ngModel)]="notes" (ngModelChange)="onChange()"></textarea>
+            </mat-form-field>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Controls -->
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:32px;">
+          <button mat-stroked-button [disabled]="!hasPrev" (click)="navigate(-1)" matTooltip="Alt+Left">
+            <mat-icon>chevron_left</mat-icon> Previous
+          </button>
+          <button mat-stroked-button [disabled]="!hasNext" (click)="navigate(1)" matTooltip="Alt+Right">
+            Next <mat-icon>chevron_right</mat-icon>
+          </button>
+          <span class="spacer"></span>
+          <button mat-button (click)="saveNow()">Save draft</button>
+          <button mat-raised-button color="primary" (click)="submit()" matTooltip="Ctrl/Cmd+Enter">
+            <mat-icon>done</mat-icon>
+            {{ status() === 'submitted' ? 'Re-submit' : 'Submit' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- REFERENCE COLUMN -->
+      @if (refOpen()) {
+        <div class="ref-col">
+          <mat-card>
+            <mat-card-header>
+              <mat-card-title style="font-size:16px;">Reference guide</mat-card-title>
+            </mat-card-header>
+            <div class="ref-body">
+              <markdown src="assets/annotation_guide.md"></markdown>
+            </div>
+          </mat-card>
+        </div>
+      }
+    </div>
+  }
+</div>
