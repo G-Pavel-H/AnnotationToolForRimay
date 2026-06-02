@@ -20,9 +20,9 @@ function parseUserSpec(spec, fallback) {
 
 const SEED = [
   { role: 'admin', spec: process.env.SEED_ADMIN, fallback: 'admin:admin123:Admin User' },
-  { role: 'annotator', spec: process.env.SEED_ANNOTATOR_1, fallback: 'annotator1:pass123:Annotator One' },
-  { role: 'annotator', spec: process.env.SEED_ANNOTATOR_2, fallback: 'annotator2:pass123:Annotator Two' },
-  { role: 'annotator', spec: process.env.SEED_ANNOTATOR_3, fallback: 'annotator3:pass123:Annotator Three' },
+  { role: 'annotator', spec: process.env.SEED_ANNOTATOR_1, fallback: 'Rafo:pass123:Rafo' },
+  { role: 'annotator', spec: process.env.SEED_ANNOTATOR_2, fallback: 'Arthur:pass123:Arthur' },
+  { role: 'annotator', spec: process.env.SEED_ANNOTATOR_3, fallback: 'Mko:pass123:Mko' },
 ];
 
 async function seed() {

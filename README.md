@@ -18,16 +18,25 @@ data capture, **blind annotation**, and a low-friction annotator experience.
 | Database | MongoDB Atlas (cloud), via Mongoose |
 | Auth     | JWT, username/password (bcrypt). Users are **seeded**, not self-registered. |
 
+## Documentation
+
+- **[WORKFLOW.md](./WORKFLOW.md)** — how the team uses the tool end to end
+  (shared cloud DB, admin setup, import → annotate → export). **Read this first.**
+- **[DATABASE.md](./DATABASE.md)** — the database structure / schema of every
+  collection.
+
 ## Repository layout
 
 ```
-AnnotationTool/
+AnnotationToolForRimay/
 ├── backend/            Express + Mongoose API
 │   ├── src/            models, routes, middleware, utils
 │   ├── scripts/        seed_users.js, import_requirements.js
 │   └── tests/          node:test unit + API tests
 ├── frontend/           Angular app
 │   └── src/assets/annotation_guide.md   editable reference guide (markdown)
+├── WORKFLOW.md         team workflow & architecture
+├── DATABASE.md         database schema
 └── README.md
 ```
 
@@ -88,12 +97,12 @@ npm start                   # http://localhost:4200
 
 ### Default seeded credentials
 
-| Role      | Username   | Password |
-|-----------|------------|----------|
-| admin     | admin      | admin123 |
-| annotator | annotator1 | pass123  |
-| annotator | annotator2 | pass123  |
-| annotator | annotator3 | pass123  |
+| Role      | Username | Password |
+|-----------|----------|----------|
+| admin     | admin    | admin123 |
+| annotator | Rafo     | pass123  |
+| annotator | Arthur   | pass123  |
+| annotator | Mko      | pass123  |
 
 Override these in `backend/.env` (`SEED_ADMIN`, `SEED_ANNOTATOR_1`, …) using the
 format `username:password:Display Name`, then re-run `npm run seed`. Change

@@ -1,0 +1,184 @@
+# Workflow & Architecture
+
+How the tool is meant to be used by the team, end to end. Read this first if
+you're confused about "who has what data."
+
+---
+
+## The one key idea
+
+**There is only ONE copy of the dataset, and it lives in MongoDB Atlas (the
+cloud) — not on anyone's laptop.**
+
+The app each person runs locally is just a *window* into that one shared cloud
+database. The laptop stores nothing; it reads from and writes to Atlas over the
+internet.
+
+> Everyone shares data **because everyone's `backend/.env` uses the same
+> `MONGO_URI`.** Same connection string → same database → same data for all.
+
+So you do **not** get four copies of the dataset. You get:
+
+```
+requirements:  [ 72-Signal ] [ 312-Signal ] ...     ← ONE shared copy of all 100
+                    ↑   ↑   ↑   ↑
+annotations:   [Rafo][Arthur][Mko][admin]           ← one answer row per person
+```
+
+One requirement annotated by four people = **1 requirement row + 4 annotation
+rows**. Nobody overwrites anybody — each save is tagged with whoever is logged
+in (via their login token), so work is always attributed correctly even though
+four separate laptops write into the one database.
+
+(For the full schema, see [`DATABASE.md`](./DATABASE.md).)
+
+---
+
+## Roles
+
+- **admin** — sets up the dataset, assigns phases, sees everyone's work, runs
+  adjudication, exports the data. The admin is also an annotator.
+- **annotator** (Rafo, Arthur, Mko) — sees only their **own** assigned
+  requirements and their **own** annotations. Never sees other annotators' work
+  or the hidden Pragyan label.
+
+---
+
+## Part 1 — Admin sets up (ONCE)
+
+You (the admin) do this a single time. The annotators do **not** repeat it.
+
+1. **Create the MongoDB Atlas cluster** (free M0 tier is fine) and get the
+   connection string: Atlas → Database → Connect → Drivers. Replace `<password>`
+   and add the DB name, e.g. `.../rimay_annotation?...`.
+2. **Allow access:** Atlas → Network Access → add each annotator's IP, or
+   `0.0.0.0/0` to allow from anywhere (simplest for a remote team).
+3. Put that string in `backend/.env` as `MONGO_URI`.
+4. Install and seed the user accounts + import the corpus:
+   ```bash
+   cd backend
+   npm install
+   npm run seed     # creates: admin, Rafo, Arthur, Mko
+   npm run import -- "../../Datasets/Pragyan/100-FeatureRequests-Corpus-Reconciled.csv" training
+   ```
+   (Or import later from the admin UI: **Admin → Dataset → Import corpus CSV**.)
+5. **Assign phases** in the admin UI (Admin → Dataset). Mark the requirements you
+   want done first as `training`, then `pilot`, then `main`. Phases just control
+   which requirements appear in which tab — a way to roll out the corpus in
+   stages.
+
+> Because all of this writes to the shared Atlas DB, the moment you've done it,
+> Rafo / Arthur / Mko will see the same requirements when they log in. They never
+> import or seed anything themselves.
+
+### Default logins (change the passwords if you like)
+
+| Role      | Username | Password |
+| --------- | -------- | -------- |
+| admin     | admin    | admin123 |
+| annotator | Rafo     | pass123  |
+| annotator | Arthur   | pass123  |
+| annotator | Mko      | pass123  |
+
+To change these, edit `SEED_*` in `backend/.env`
+(`username:password:Display Name`) and re-run `npm run seed`.
+
+---
+
+## Part 2 — What to share with the annotators
+
+Give each annotator **two things**:
+
+1. **The code** (this repo).
+2. **The same `MONGO_URI`** (the shared Atlas string) to paste into their own
+   `backend/.env`, plus their username/password.
+
+> The connection string contains the DB password, so only share it privately
+> with your trusted team — don't post it publicly. (If you'd rather not share
+> the DB password at all, the alternative is to run *one* backend on your machine
+> and have annotators point their frontend at your address — but that needs your
+> machine online and reachable. Shared-Atlas is usually easier for remote people.)
+
+---
+
+## Part 3 — Each annotator runs it locally
+
+On their own laptop, each annotator:
+
+```bash
+# backend/.env: paste the shared MONGO_URI (and a JWT_SECRET — any random string)
+cd backend && npm install && npm run dev      # http://localhost:4000
+
+cd frontend && npm install && npm start        # http://localhost:4200
+```
+
+Then open <http://localhost:4200>, log in as themselves, and annotate. They do
+**not** seed or import — the data is already in the shared DB.
+
+Notes:
+- Each laptop runs its own backend, but they all point at the **same Atlas DB**.
+  That's fine — MongoDB handles many connections at once.
+- `JWT_SECRET` can differ per laptop without any problem, because each person
+  only talks to their own local backend.
+
+---
+
+## Part 4 — Annotating
+
+For each requirement, the annotator (see the in-app reference guide for the real
+rules):
+
+- writes the **Rimay conversion** (with `<MISSING_*>` placeholders where needed),
+- sets the five **slots** (Scope, Condition, Actor, Modal verb, Action) to
+  Present / Implied / Missing,
+- picks condition type, pattern number, marks non-atomic if relevant,
+- adds notes, and **Submits**.
+
+Drafts **autosave** continuously and survive logout — reopening a requirement
+reloads the exact saved state from Atlas. The "Complete / Incomplete" verdict is
+computed automatically (a requirement is incomplete if Actor, Modal verb, or
+Action is Missing).
+
+Phases are done in order: **training → pilot → main** (each is a tab on the
+dashboard).
+
+---
+
+## Part 5 — Adjudication (admin, optional)
+
+After annotators submit, the admin opens **Admin → Dataset → Adjudicate** on a
+requirement to see everyone's answers **side by side**, with disagreements
+highlighted, and records a **gold standard** per slot (and optionally a canonical
+Rimay). The free-text Rimay conversions are kept individual (not merged) — they
+feed the similarity analysis separately.
+
+---
+
+## Part 6 — The endgame: Export → Python
+
+When annotation is done, the admin clicks **Admin → Export** (JSON or CSV).
+
+Export pulls the **entire shared database into one flat file**: **one row per
+(requirement × annotator)**, with every slot value in its own column, plus the
+gold standard and the Pragyan label joined in. So one requirement annotated by
+four people = four rows.
+
+That file is exactly what the separate **Python pipeline** consumes:
+
+- **Fleiss' Kappa** — *did the annotators agree?* Needs everyone's slot choices
+  side by side per requirement. ✔ in the export.
+- **Similarity metrics** — comparing each person's free-text Rimay conversion.
+  ✔ one per annotator in the export.
+
+```
+annotate independently  →  one shared Atlas DB  →  admin exports one file  →  Python: Kappa + similarity
+```
+
+---
+
+## Resetting
+
+If you need to start over (e.g. after a trial run), the admin can wipe the whole
+dataset: **Admin → Dataset → Danger zone → Clear entire dataset**. This deletes
+all requirements, all annotations, and all adjudications from the shared DB, but
+**keeps the user accounts**. Export first if you might want the data later.
