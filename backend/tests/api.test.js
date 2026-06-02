@@ -185,3 +185,29 @@ test('admin export includes pragyanIncomp and flattened slots', async () => {
   assert.equal(csv.status, 200);
   assert.ok(csv.text.includes('pragyanIncomp'));
 });
+
+test('clear-data endpoint blocked for annotators', async () => {
+  const token = await login('ann1', 'pass123');
+  const res = await request.delete('/api/admin/data').set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 403);
+});
+
+// NOTE: this wipes the shared test DB, so it must be the LAST test in the file.
+test('admin clear-data wipes requirements, annotations and adjudications (keeps users)', async () => {
+  const token = await login('admin', 'admin123');
+
+  const before = await request.get('/api/requirements').set('Authorization', `Bearer ${token}`);
+  assert.ok(before.body.requirements.length > 0);
+
+  const res = await request.delete('/api/admin/data').set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.ok(res.body.deletedRequirements > 0);
+
+  const after = await request.get('/api/requirements').set('Authorization', `Bearer ${token}`);
+  assert.equal(after.body.requirements.length, 0);
+
+  // Users untouched — admin can still authenticate.
+  const me = await request.get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+  assert.equal(me.status, 200);
+  assert.equal(me.body.user.username, 'admin');
+});

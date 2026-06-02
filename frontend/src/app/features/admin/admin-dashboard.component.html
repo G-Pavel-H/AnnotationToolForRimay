@@ -55,6 +55,12 @@
               <p>Drag &amp; drop the Pragyan corpus CSV here, or click to choose a file.</p>
               <input #fileInput type="file" accept=".csv" hidden (change)="onFilePick($event)" />
             </div>
+            <p style="font-size:12px; color:#888; margin-top:12px;">
+              <mat-icon style="font-size:14px; height:14px; width:14px; vertical-align:text-bottom;">info</mat-icon>
+              Import is an <strong>upsert keyed by Req ID</strong>: importing the same CSV again updates the
+              existing rows in place — it does <strong>not</strong> create duplicates. You always have exactly
+              one copy per Req ID. The count above shows the live total.
+            </p>
           </mat-card-content>
         </mat-card>
 
@@ -109,6 +115,25 @@
                 }
               </tbody>
             </table>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card style="margin-top:16px; border:1px solid #ef9a9a;">
+          <mat-card-header>
+            <mat-card-title style="color:#b71c1c;">
+              <mat-icon style="vertical-align:text-bottom;">warning</mat-icon> Danger zone
+            </mat-card-title>
+            <mat-card-subtitle>Clear the entire uploaded dataset and start fresh.</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content style="padding-top:8px;">
+            <p style="color:#666; font-size:13px;">
+              Permanently deletes <strong>all requirements, all annotations (every annotator's), and all
+              adjudications</strong>. User accounts are kept. You'll be asked to confirm twice. Tip: export
+              first if you might want the data later.
+            </p>
+            <button mat-raised-button color="warn" (click)="clearAllData()">
+              <mat-icon>delete_forever</mat-icon> Clear entire dataset
+            </button>
           </mat-card-content>
         </mat-card>
       </div>

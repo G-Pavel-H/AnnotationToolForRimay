@@ -1,6 +1,15 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
+import { CanActivateFn, CanDeactivateFn, Router } from '@angular/router';
+import { Observable } from 'rxjs';
 import { AuthService } from './auth.service';
+
+export interface CanComponentDeactivate {
+  canDeactivate: () => boolean | Observable<boolean>;
+}
+
+// Guards against navigating away from a component with unsaved changes.
+export const pendingChangesGuard: CanDeactivateFn<CanComponentDeactivate> = (component) =>
+  component && typeof component.canDeactivate === 'function' ? component.canDeactivate() : true;
 
 export const authGuard: CanActivateFn = () => {
   const auth = inject(AuthService);

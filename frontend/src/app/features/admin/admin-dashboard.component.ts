@@ -166,4 +166,37 @@ export class AdminDashboardComponent implements OnInit {
   adjudicate(r: Requirement): void {
     this.router.navigate(['/admin/adjudicate', r._id]);
   }
+
+  // --- danger zone: wipe the whole dataset ---
+  clearAllData(): void {
+    const reqCount = this.requirements().length;
+    const first = window.confirm(
+      `⚠️ This permanently deletes the ENTIRE dataset:\n\n` +
+        `• all ${reqCount} requirements\n` +
+        `• ALL annotations from every annotator\n` +
+        `• all adjudications\n\n` +
+        `Users are kept. This cannot be undone. Continue?`
+    );
+    if (!first) return;
+    const typed = window.prompt('Type DELETE (in capitals) to confirm wiping everything:');
+    if (typed !== 'DELETE') {
+      this.snack.open('Cancelled — nothing was deleted.', '', { duration: 2500 });
+      return;
+    }
+    this.loading.set(true);
+    this.api.clearAllData().subscribe({
+      next: (res) => {
+        this.snack.open(
+          `Cleared: ${res.deletedRequirements} requirements, ${res.deletedAnnotations} annotations, ${res.deletedAdjudications} adjudications.`,
+          '',
+          { duration: 5000 }
+        );
+        this.refresh();
+      },
+      error: () => {
+        this.loading.set(false);
+        this.snack.open('Clear failed', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
 }

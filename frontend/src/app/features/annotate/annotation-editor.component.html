@@ -16,8 +16,15 @@
       <span style="color:#666;">{{ positionLabel() }}</span>
       <span class="spacer"></span>
       <span class="save-state">
-        @if (saving()) { Saving… }
-        @else if (lastSavedAt()) { Saved {{ lastSavedAt() | date: 'shortTime' }} }
+        @if (saving()) {
+          <span style="color:#1565c0;"><mat-icon style="font-size:16px;height:16px;width:16px;vertical-align:text-bottom;">sync</mat-icon> Saving…</span>
+        } @else if (saveError()) {
+          <span style="color:#b71c1c; font-weight:500;"><mat-icon style="font-size:16px;height:16px;width:16px;vertical-align:text-bottom;">cloud_off</mat-icon> Not saved!</span>
+        } @else if (dirty()) {
+          <span style="color:#e65100;">Unsaved changes…</span>
+        } @else if (lastSavedAt()) {
+          <span><mat-icon style="font-size:16px;height:16px;width:16px;vertical-align:text-bottom;">cloud_done</mat-icon> Saved {{ lastSavedAt() | date: 'shortTime' }}</span>
+        }
       </span>
       <mat-chip [class.status-submitted]="status() === 'submitted'" [class.status-draft]="status() === 'draft'">
         {{ status() === 'submitted' ? 'Submitted' : 'Draft' }}
@@ -43,7 +50,7 @@
               {{ showFullText() ? 'Hide full text' : 'Show full source text' }}
             </button>
             @if (showFullText()) {
-              <pre style="white-space:pre-wrap; background:#f5f5f5; padding:12px; border-radius:6px; font-size:13px;">{{ req.nlText }}</pre>
+              <pre class="code-block" style="white-space:pre-wrap; padding:12px; font-size:13px;">{{ req.nlText }}</pre>
             }
           </mat-card-content>
         </mat-card>

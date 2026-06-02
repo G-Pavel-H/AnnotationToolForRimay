@@ -83,6 +83,18 @@ export class ApiService {
     );
   }
 
+  clearAllData(): Observable<{
+    deletedRequirements: number;
+    deletedAnnotations: number;
+    deletedAdjudications: number;
+  }> {
+    return this.http.delete<{
+      deletedRequirements: number;
+      deletedAnnotations: number;
+      deletedAdjudications: number;
+    }>('/api/admin/data');
+  }
+
   exportUrl(format: 'json' | 'csv'): string {
     return `/api/admin/export?format=${format}`;
   }

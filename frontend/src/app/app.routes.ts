@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, adminGuard } from './core/guards';
+import { authGuard, adminGuard, pendingChangesGuard } from './core/guards';
 
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
@@ -18,6 +18,7 @@ export const routes: Routes = [
   {
     path: 'annotate/:requirementId',
     canActivate: [authGuard],
+    canDeactivate: [pendingChangesGuard],
     loadComponent: () =>
       import('./features/annotate/annotation-editor.component').then(
         (m) => m.AnnotationEditorComponent

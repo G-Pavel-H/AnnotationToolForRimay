@@ -26,7 +26,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MarkdownComponent } from 'ngx-markdown';
-import { Subject, debounceTime } from 'rxjs';
+import { Observable, Subject, catchError, debounceTime, map, of } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
 import {
@@ -126,6 +126,9 @@ export class AnnotationEditorComponent implements OnInit, OnDestroy {
   annotationId = signal<string | null>(null);
   status = signal<'draft' | 'submitted'>('draft');
   lastSavedAt = signal<Date | null>(null);
+  // dirty = user made edits not yet confirmed saved; saveError = last save failed.
+  dirty = signal(false);
+  saveError = signal(false);
 
   // navigation context (within the same phase)
   private phaseList = signal<Requirement[]>([]);
@@ -233,6 +236,8 @@ export class AnnotationEditorComponent implements OnInit, OnDestroy {
     this.annotationId.set(null);
     this.status.set('draft');
     this.lastSavedAt.set(null);
+    this.dirty.set(false);
+    this.saveError.set(false);
     this.rimayText = '';
     this.slots = {
       scope: 'missing',
@@ -265,6 +270,8 @@ export class AnnotationEditorComponent implements OnInit, OnDestroy {
   onChange(): void {
     if (!this.conditionEnabled) this.conditionType = 'none';
     if (!this.nonAtomic) this.nSystemResponses = null;
+    this.dirty.set(true);
+    this.saveError.set(false);
     this.save$.next();
   }
 
@@ -296,11 +303,14 @@ export class AnnotationEditorComponent implements OnInit, OnDestroy {
         this.annotationId.set(res.annotation._id);
         this.status.set(res.annotation.status);
         this.lastSavedAt.set(new Date());
+        this.dirty.set(false);
+        this.saveError.set(false);
         this.saving.set(false);
         if (showToast) this.snack.open('Saved', '', { duration: 1200 });
       },
       error: () => {
         this.saving.set(false);
+        this.saveError.set(true);
         this.snack.open('Save failed — check your connection', 'Dismiss', { duration: 4000 });
       },
     });
@@ -322,17 +332,21 @@ export class AnnotationEditorComponent implements OnInit, OnDestroy {
             this.annotationId.set(sub.annotation._id);
             this.status.set('submitted');
             this.lastSavedAt.set(new Date());
+            this.dirty.set(false);
+            this.saveError.set(false);
             this.saving.set(false);
             this.snack.open('Submitted', '', { duration: 1500 });
           },
           error: () => {
             this.saving.set(false);
+            this.saveError.set(true);
             this.snack.open('Submit failed', 'Dismiss', { duration: 4000 });
           },
         });
       },
       error: () => {
         this.saving.set(false);
+        this.saveError.set(true);
         this.snack.open('Submit failed', 'Dismiss', { duration: 4000 });
       },
     });
@@ -384,11 +398,92 @@ export class AnnotationEditorComponent implements OnInit, OnDestroy {
 
   navigate(offset: number): void {
     const target = this.neighbour(offset);
-    if (target) this.router.navigate(['/annotate', target._id]);
+    if (!target) return;
+    // Moving to a sibling requirement reuses this component, so the router's
+    // CanDeactivate guard does NOT fire. Flush any pending edits ourselves first.
+    this.flushThen(() => this.router.navigate(['/annotate', target._id]));
   }
 
   back(): void {
+    // Leaving to /dashboard is a real route change → the CanDeactivate guard
+    // handles the unsaved-changes check, so just navigate.
     this.router.navigate(['/dashboard']);
+  }
+
+  /**
+   * Save any pending edits, then run `action`. If the save fails, ask the user
+   * whether to proceed and lose the unsaved changes.
+   */
+  private flushThen(action: () => void): void {
+    if (!this.dirty() && !this.saveError()) {
+      action();
+      return;
+    }
+    const req = this.requirement();
+    if (!req) {
+      action();
+      return;
+    }
+    this.saving.set(true);
+    this.api.upsertAnnotation(this.buildPayload()).subscribe({
+      next: (res) => {
+        this.annotationId.set(res.annotation._id);
+        this.status.set(res.annotation.status);
+        this.lastSavedAt.set(new Date());
+        this.dirty.set(false);
+        this.saveError.set(false);
+        this.saving.set(false);
+        action();
+      },
+      error: () => {
+        this.saving.set(false);
+        this.saveError.set(true);
+        if (
+          window.confirm(
+            'Your latest changes could not be saved (you may be offline). Leave anyway? Unsaved edits will be lost.'
+          )
+        ) {
+          action();
+        }
+      },
+    });
+  }
+
+  /**
+   * Router CanDeactivate hook. Fires when leaving the editor route (back,
+   * toolbar links, logout). Tries a final save; only warns if it fails.
+   */
+  canDeactivate(): boolean | Observable<boolean> {
+    if (!this.dirty() && !this.saveError()) return true;
+    const req = this.requirement();
+    if (!req) return true;
+    return this.api.upsertAnnotation(this.buildPayload()).pipe(
+      map((res) => {
+        this.annotationId.set(res.annotation._id);
+        this.status.set(res.annotation.status);
+        this.lastSavedAt.set(new Date());
+        this.dirty.set(false);
+        this.saveError.set(false);
+        return true;
+      }),
+      catchError(() => {
+        this.saveError.set(true);
+        return of(
+          window.confirm(
+            'Your latest changes could not be saved (you may be offline). Leave anyway? Unsaved edits will be lost.'
+          )
+        );
+      })
+    );
+  }
+
+  // Hard tab/window close: trigger the browser's native "unsaved changes" prompt.
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnload(e: BeforeUnloadEvent): void {
+    if (this.dirty() || this.saveError()) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
   }
 
   @HostListener('window:keydown', ['$event'])

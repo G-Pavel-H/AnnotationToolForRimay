@@ -42,13 +42,13 @@ import {
   styles: [
     `
       table { width: 100%; border-collapse: collapse; }
-      th, td { padding: 8px 10px; border: 1px solid #e0e0e0; text-align: left; vertical-align: top; }
-      th { background: #f5f5f5; font-weight: 500; }
+      th, td { padding: 8px 10px; border: 1px solid var(--mat-sys-outline-variant); text-align: left; vertical-align: top; }
+      th { background: var(--mat-sys-surface-container-high); font-weight: 500; }
       .slot-name { font-weight: 500; width: 130px; }
-      .val-present { color: #1b5e20; }
+      .val-present { color: #2e7d32; }
       .val-implied { color: #ef6c00; }
-      .val-missing { color: #b71c1c; }
-      .gold-col { background: #fffde7; }
+      .val-missing { color: #e53935; }
+      .gold-col { background: rgba(255, 213, 79, 0.16); }
     `,
   ],
 })

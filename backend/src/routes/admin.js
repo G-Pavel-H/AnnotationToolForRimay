@@ -247,5 +247,28 @@ router.get('/export', async (req, res, next) => {
   }
 });
 
+/**
+ * DELETE /api/admin/data
+ * Danger zone: wipes the entire uploaded dataset — all requirements, all
+ * annotations (everyone's), and all adjudications. Users are NOT touched.
+ * Use this to reset before a fresh import. Admin-only.
+ */
+router.delete('/data', async (req, res, next) => {
+  try {
+    const [annRes, adjRes, reqRes] = await Promise.all([
+      Annotation.deleteMany({}),
+      Adjudication.deleteMany({}),
+      Requirement.deleteMany({}),
+    ]);
+    res.json({
+      deletedRequirements: reqRes.deletedCount,
+      deletedAnnotations: annRes.deletedCount,
+      deletedAdjudications: adjRes.deletedCount,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
 module.exports.computeHadDisagreement = computeHadDisagreement;
