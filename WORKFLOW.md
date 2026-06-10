@@ -101,25 +101,41 @@ Give each annotator **two things**:
 
 ---
 
-## Part 3 — Each annotator runs it locally
+## Part 3 — Each annotator runs it locally (the easy way)
 
-On their own laptop, each annotator:
+The only prerequisite is **[Node.js](https://nodejs.org) (v20+)** installed.
+
+On their own laptop, each annotator runs **two commands**, once each:
 
 ```bash
-# backend/.env: paste the shared MONGO_URI (and a JWT_SECRET — any random string)
-cd backend && npm install && npm run dev      # http://localhost:4000
+# 1. One-time setup: paste the shared MONGO_URI when asked, then it installs everything.
+npm run setup        # (or:  node setup.js)
 
-cd frontend && npm install && npm start        # http://localhost:4200
+# 2. Start the app (run this every time they want to annotate):
+npm start            # (or:  node start.js)
 ```
 
-Then open <http://localhost:4200>, log in as themselves, and annotate. They do
-**not** seed or import — the data is already in the shared DB.
+`npm run setup` prompts for the **MongoDB connection string** (the one thing you
+gave them), writes their `backend/.env` with a private auto-generated
+`JWT_SECRET`, and installs all dependencies. `npm start` launches the backend and
+frontend together and prints the link to open:
+
+```
+✅ Rimay Annotation Tool is running
+Open:  http://localhost:4200
+```
+
+They open that link, log in as themselves, and annotate. They do **not** seed or
+import — the data is already in the shared DB. Press **Ctrl+C** in the terminal to
+stop the app.
 
 Notes:
 - Each laptop runs its own backend, but they all point at the **same Atlas DB**.
   That's fine — MongoDB handles many connections at once.
-- `JWT_SECRET` can differ per laptop without any problem, because each person
-  only talks to their own local backend.
+- `JWT_SECRET` is generated per machine and never shared — each person only talks
+  to their own local backend, so it doesn't need to match anyone else's.
+- Prefer to do it by hand? `cd backend && npm install && npm run dev` and
+  `cd frontend && npm install && npm start` still work.
 
 ---
 

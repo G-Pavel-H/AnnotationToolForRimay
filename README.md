@@ -29,6 +29,9 @@ data capture, **blind annotation**, and a low-friction annotator experience.
 
 ```
 AnnotationToolForRimay/
+├── setup.js            one-step setup (prompts for MONGO_URI, installs deps)
+├── start.js            launches backend + frontend together
+├── package.json        root scripts: `npm run setup`, `npm start`
 ├── backend/            Express + Mongoose API
 │   ├── src/            models, routes, middleware, utils
 │   ├── scripts/        seed_users.js, import_requirements.js
@@ -56,8 +59,36 @@ requirements serializer (`backend/src/utils/serializers.js`), not just the UI.
 ## Setup & run
 
 Uses **MongoDB Atlas** (cloud). No local database or Docker required.
+Prerequisite: **[Node.js](https://nodejs.org) v20+**.
 
-### 1. Backend
+### Quick start (recommended — especially for annotators)
+
+Two commands from the project root:
+
+```bash
+npm run setup     # prompts for the MongoDB URI, writes backend/.env, installs everything
+npm start         # launches backend + frontend, prints http://localhost:4200
+```
+
+`setup` auto-generates a private `JWT_SECRET` and installs both apps. `start`
+runs the API (port 4000) and the Angular dev server (port 4200) together and
+shows the link to open; Ctrl+C stops both. See **[WORKFLOW.md](./WORKFLOW.md)**
+for the full team flow (who imports the data, phases, export → Python).
+
+> **Admin only, once:** after `npm run setup`, seed the users and import the
+> corpus:
+> ```bash
+> cd backend
+> npm run seed
+> npm run import -- "../../Datasets/Pragyan/100-FeatureRequests-Corpus-Reconciled.csv" training
+> ```
+> Annotators skip this — the data is already in the shared DB.
+
+---
+
+### Manual setup (the same thing, by hand)
+
+#### 1. Backend
 
 ```bash
 cd backend
@@ -84,7 +115,7 @@ Atlas):
 npm test
 ```
 
-### 2. Frontend
+#### 2. Frontend
 
 ```bash
 cd frontend
