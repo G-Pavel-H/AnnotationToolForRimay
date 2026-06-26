@@ -154,10 +154,11 @@
                   <span style="font-size:12px; color:#888;">pattern {{ a.patternNumber }}</span>
                 }
               </div>
-              <pre class="code-block" style="white-space:pre-wrap; padding:10px; font-size:13px; margin:6px 0;">{{ a.rimayText || '(no conversion written)' }}</pre>
-              @if (a.notes) {
-                <p style="font-size:12px; color:#777; margin:0 0 4px;"><strong>Notes:</strong> {{ a.notes }}</p>
-              }
+              <div style="font-size:12px; color:#888; margin:6px 0 2px;">Converted Rimay</div>
+              <pre class="code-block" style="white-space:pre-wrap; padding:10px; font-size:13px; margin:0 0 8px;">{{ a.rimayText || '(no conversion written)' }}</pre>
+
+              <div style="font-size:12px; color:#888; margin:0 0 2px;">Notes</div>
+              <div class="notes-box">{{ a.notes || '(no notes)' }}</div>
             </div>
           }
         </mat-card-content>

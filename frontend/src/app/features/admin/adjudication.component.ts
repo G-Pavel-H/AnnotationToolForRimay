@@ -52,6 +52,15 @@ import {
       .rimay-row { padding: 10px 0; border-top: 1px solid var(--mat-sys-outline-variant); }
       .rimay-row:first-of-type { border-top: none; }
       .rimay-meta { display: flex; align-items: center; gap: 10px; }
+      .notes-box {
+        font-size: 13px;
+        white-space: pre-wrap;
+        padding: 8px 10px;
+        border-left: 3px solid var(--mat-sys-outline-variant);
+        background: var(--mat-sys-surface-container);
+        border-radius: 4px;
+        color: var(--mat-sys-on-surface);
+      }
     `,
   ],
 })
