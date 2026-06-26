@@ -11,6 +11,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { ApiService } from '../../core/api.service';
 import { Phase, ProgressResponse, Requirement } from '../../core/models';
 
@@ -31,6 +32,7 @@ const PHASES: Phase[] = ['training', 'pilot', 'main'];
     MatSnackBarModule,
     MatTabsModule,
     MatChipsModule,
+    MatExpansionModule,
   ],
   templateUrl: './admin-dashboard.component.html',
   styles: [
@@ -62,6 +64,17 @@ export class AdminDashboardComponent implements OnInit {
   bulkPhase: Phase = 'pilot';
 
   progressColumns = ['annotator', 'training', 'pilot', 'main'];
+
+  // Requirements grouped by phase, so the admin can find/adjudicate per phase.
+  byPhase = computed(() => {
+    const groups: Record<Phase, Requirement[]> = { training: [], pilot: [], main: [] };
+    for (const r of this.requirements()) groups[r.phase].push(r);
+    return groups;
+  });
+
+  phaseCount(phase: Phase): number {
+    return this.byPhase()[phase].length;
+  }
 
   ngOnInit(): void {
     this.refresh();

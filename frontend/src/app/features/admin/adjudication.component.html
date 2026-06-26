@@ -133,6 +133,36 @@
         </mat-card-content>
       </mat-card>
 
+      <!-- Each annotator's converted Rimay text, in rows, always visible -->
+      <mat-card style="margin-bottom:16px;">
+        <mat-card-header>
+          <mat-card-title>Converted Rimay text by annotator</mat-card-title>
+          <mat-card-subtitle>
+            The free-text conversions, side by side. These are exported individually for the
+            similarity analysis — they are not reconciled to a single value.
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content style="padding-top:8px;">
+          @for (a of annotations(); track a._id) {
+            <div class="rimay-row">
+              <div class="rimay-meta">
+                <span style="font-weight:500;">{{ annotatorName(a) }}</span>
+                <mat-chip [class.chip-incomplete]="annotatorVerdict(a)" [class.chip-complete]="!annotatorVerdict(a)">
+                  {{ annotatorVerdict(a) ? 'Incomplete' : 'Complete' }}
+                </mat-chip>
+                @if (a.patternNumber) {
+                  <span style="font-size:12px; color:#888;">pattern {{ a.patternNumber }}</span>
+                }
+              </div>
+              <pre class="code-block" style="white-space:pre-wrap; padding:10px; font-size:13px; margin:6px 0;">{{ a.rimayText || '(no conversion written)' }}</pre>
+              @if (a.notes) {
+                <p style="font-size:12px; color:#777; margin:0 0 4px;"><strong>Notes:</strong> {{ a.notes }}</p>
+              }
+            </div>
+          }
+        </mat-card-content>
+      </mat-card>
+
       <mat-card style="margin-bottom:32px;">
         <mat-card-header><mat-card-title>Gold standard</mat-card-title></mat-card-header>
         <mat-card-content style="padding-top:16px;">

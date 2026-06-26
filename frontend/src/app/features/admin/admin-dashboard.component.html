@@ -75,46 +75,64 @@
         </mat-card>
 
         <mat-card>
-          <mat-card-header><mat-card-title>Requirements ({{ requirements().length }})</mat-card-title></mat-card-header>
+          <mat-card-header>
+            <mat-card-title>Requirements ({{ requirements().length }})</mat-card-title>
+            <mat-card-subtitle>Grouped by phase — expand a phase to review and adjudicate it.</mat-card-subtitle>
+          </mat-card-header>
           <mat-card-content>
-            <table style="width:100%; border-collapse:collapse;">
-              <thead>
-                <tr style="text-align:left; color:#666; font-size:13px;">
-                  <th style="padding:6px 8px;">Req ID</th>
-                  <th style="padding:6px 8px;">Description</th>
-                  <th style="padding:6px 8px;">Pragyan</th>
-                  <th style="padding:6px 8px;">Phase</th>
-                  <th style="padding:6px 8px;"></th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (r of requirements(); track r._id) {
-                  <tr class="req-row" style="border-top:1px solid #eee;">
-                    <td style="padding:6px 8px; font-weight:500;">{{ r.reqId }}</td>
-                    <td style="padding:6px 8px; max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                      {{ r.nlDescription }}
-                    </td>
-                    <td style="padding:6px 8px;">
-                      @if (r.pragyanIncomp === 1) {
-                        <mat-chip class="chip-incomplete">incomp</mat-chip>
-                      } @else {
-                        <span style="color:#999;">—</span>
-                      }
-                    </td>
-                    <td style="padding:6px 8px;">
-                      <mat-select [value]="r.phase" (selectionChange)="setPhase(r, $event.value)" style="width:130px;">
-                        @for (ph of phases; track ph) { <mat-option [value]="ph">{{ ph }}</mat-option> }
-                      </mat-select>
-                    </td>
-                    <td style="padding:6px 8px;">
-                      <button mat-stroked-button (click)="adjudicate(r)">
-                        <mat-icon>gavel</mat-icon> Adjudicate
-                      </button>
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+            <mat-accordion multi>
+              @for (ph of phases; track ph) {
+                <mat-expansion-panel [expanded]="phaseCount(ph) > 0">
+                  <mat-expansion-panel-header>
+                    <mat-panel-title style="text-transform:capitalize; font-weight:500;">{{ ph }}</mat-panel-title>
+                    <mat-panel-description>{{ phaseCount(ph) }} requirement{{ phaseCount(ph) === 1 ? '' : 's' }}</mat-panel-description>
+                  </mat-expansion-panel-header>
+
+                  @if (phaseCount(ph) === 0) {
+                    <p style="color:#888; margin:8px 0;">No requirements in this phase.</p>
+                  } @else {
+                    <table style="width:100%; border-collapse:collapse;">
+                      <thead>
+                        <tr style="text-align:left; color:#888; font-size:13px;">
+                          <th style="padding:6px 8px;">Req ID</th>
+                          <th style="padding:6px 8px;">Description</th>
+                          <th style="padding:6px 8px;">Pragyan</th>
+                          <th style="padding:6px 8px;">Phase</th>
+                          <th style="padding:6px 8px;"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (r of byPhase()[ph]; track r._id) {
+                          <tr class="req-row" style="border-top:1px solid var(--mat-sys-outline-variant);">
+                            <td style="padding:6px 8px; font-weight:500;">{{ r.reqId }}</td>
+                            <td style="padding:6px 8px; max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                              {{ r.nlDescription }}
+                            </td>
+                            <td style="padding:6px 8px;">
+                              @if (r.pragyanIncomp === 1) {
+                                <mat-chip class="chip-incomplete">incomp</mat-chip>
+                              } @else {
+                                <span style="color:#999;">—</span>
+                              }
+                            </td>
+                            <td style="padding:6px 8px;">
+                              <mat-select [value]="r.phase" (selectionChange)="setPhase(r, $event.value)" style="width:130px;">
+                                @for (p of phases; track p) { <mat-option [value]="p">{{ p }}</mat-option> }
+                              </mat-select>
+                            </td>
+                            <td style="padding:6px 8px;">
+                              <button mat-stroked-button (click)="adjudicate(r)">
+                                <mat-icon>gavel</mat-icon> Adjudicate
+                              </button>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  }
+                </mat-expansion-panel>
+              }
+            </mat-accordion>
           </mat-card-content>
         </mat-card>
 

@@ -49,6 +49,9 @@ import {
       .val-implied { color: #ef6c00; }
       .val-missing { color: #e53935; }
       .gold-col { background: rgba(255, 213, 79, 0.16); }
+      .rimay-row { padding: 10px 0; border-top: 1px solid var(--mat-sys-outline-variant); }
+      .rimay-row:first-of-type { border-top: none; }
+      .rimay-meta { display: flex; align-items: center; gap: 10px; }
     `,
   ],
 })

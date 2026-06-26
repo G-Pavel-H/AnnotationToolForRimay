@@ -58,14 +58,28 @@ pre {
   border-radius: 6px;
 }
 
-// Self-contained status chips (explicit fg/bg pairs, readable in light & dark).
+// Verdict chips — solid, high-contrast fills that stay readable in BOTH light
+// and dark mode. We override the Material chip surface + label so the colour
+// isn't repainted by the theme (which previously hid the text in dark mode).
+.chip-incomplete.mat-mdc-chip,
 .chip-incomplete {
-  background-color: #ffcdd2 !important;
-  color: #b71c1c !important;
+  --mdc-chip-elevated-container-color: #b71c1c;
+  --mdc-chip-label-text-color: #ffffff;
+  background-color: #b71c1c !important;
 }
+.chip-complete.mat-mdc-chip,
 .chip-complete {
-  background-color: #c8e6c9 !important;
-  color: #1b5e20 !important;
+  --mdc-chip-elevated-container-color: #1b5e20;
+  --mdc-chip-label-text-color: #ffffff;
+  background-color: #1b5e20 !important;
+}
+.chip-incomplete .mat-mdc-chip-action-label,
+.chip-incomplete .mdc-evolution-chip__text-label,
+.chip-incomplete .mat-icon,
+.chip-complete .mat-mdc-chip-action-label,
+.chip-complete .mdc-evolution-chip__text-label,
+.chip-complete .mat-icon {
+  color: #ffffff !important;
 }
 
 .status-submitted {
