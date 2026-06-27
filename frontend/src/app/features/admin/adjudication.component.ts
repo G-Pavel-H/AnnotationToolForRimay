@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -11,6 +11,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import {
   Adjudication,
@@ -37,6 +38,7 @@ import {
     MatInputModule,
     MatProgressBarModule,
     MatSnackBarModule,
+    MatTooltipModule,
   ],
   templateUrl: './adjudication.component.html',
   styles: [
@@ -78,6 +80,16 @@ export class AdjudicationComponent implements OnInit {
   annotations = signal<Annotation[]>([]);
   expanded = signal<Set<string>>(new Set());
 
+  // Ordered requirements in the SAME phase, for Previous/Next cycling.
+  private phaseList = signal<Requirement[]>([]);
+  positionLabel = computed(() => {
+    const list = this.phaseList();
+    const req = this.requirement();
+    if (!req || !list.length) return '';
+    const idx = list.findIndex((r) => r._id === req._id);
+    return idx >= 0 ? `${idx + 1} / ${list.length} in ${req.phase}` : '';
+  });
+
   // gold form state
   goldSlots: Slots = {
     scope: 'missing',
@@ -99,16 +111,39 @@ export class AdjudicationComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    const id = this.route.snapshot.paramMap.get('requirementId');
-    if (id) this.load(id);
+    // Subscribe (not snapshot) so Previous/Next — which reuse this component —
+    // reload the new requirement.
+    this.route.paramMap.subscribe((params) => {
+      const id = params.get('requirementId');
+      if (id) this.load(id);
+    });
+  }
+
+  private resetGoldForm(): void {
+    this.goldSlots = {
+      scope: 'missing',
+      condition: 'missing',
+      actor: 'missing',
+      modalVerb: 'missing',
+      action: 'missing',
+    };
+    this.goldConditionType = 'none';
+    this.canonicalRimay = '';
+    this.notes = '';
+    this.expanded.set(new Set());
   }
 
   private load(requirementId: string): void {
     this.loading.set(true);
+    this.resetGoldForm();
     this.api.getAllAnnotations(requirementId).subscribe({
       next: (res) => {
         this.requirement.set(res.requirement);
         this.annotations.set(res.annotations);
+        // Load the same-phase list for Previous/Next.
+        this.api.listRequirements(res.requirement.phase).subscribe((listRes) => {
+          this.phaseList.set(listRes.requirements);
+        });
         if (res.adjudication) {
           this.goldSlots = { ...this.goldSlots, ...res.adjudication.goldSlots };
           this.goldConditionType = res.adjudication.goldConditionType || 'none';
@@ -203,7 +238,7 @@ export class AdjudicationComponent implements OnInit {
     return this.expanded().has(a._id);
   }
 
-  save(): void {
+  save(then?: () => void): void {
     const req = this.requirement();
     if (!req) return;
     this.saving.set(true);
@@ -216,7 +251,8 @@ export class AdjudicationComponent implements OnInit {
     this.api.saveAdjudication(req._id, payload).subscribe({
       next: () => {
         this.saving.set(false);
-        this.snack.open('Adjudication saved', '', { duration: 2000 });
+        this.snack.open('Adjudication saved', '', { duration: 1500 });
+        if (then) then();
       },
       error: () => {
         this.saving.set(false);
@@ -225,7 +261,52 @@ export class AdjudicationComponent implements OnInit {
     });
   }
 
+  // Save, then advance to the next requirement in the phase (if any).
+  saveAndNext(): void {
+    this.save(() => {
+      if (this.hasNext) {
+        this.navigate(1);
+      } else {
+        this.snack.open('Saved — that was the last one in this phase.', '', { duration: 2500 });
+      }
+    });
+  }
+
+  // --- in-phase navigation ---
+  private neighbour(offset: number): Requirement | undefined {
+    const list = this.phaseList();
+    const req = this.requirement();
+    if (!req) return undefined;
+    const idx = list.findIndex((r) => r._id === req._id);
+    if (idx < 0) return undefined;
+    return list[idx + offset];
+  }
+
+  get hasPrev(): boolean {
+    return !!this.neighbour(-1);
+  }
+  get hasNext(): boolean {
+    return !!this.neighbour(1);
+  }
+
+  navigate(offset: number): void {
+    const target = this.neighbour(offset);
+    if (target) this.router.navigate(['/admin/adjudicate', target._id]);
+  }
+
   back(): void {
-    this.router.navigate(['/admin']);
+    // Return to the admin dashboard's Dataset tab (not the default Progress tab).
+    this.router.navigate(['/admin'], { queryParams: { tab: 'dataset' } });
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  onKey(e: KeyboardEvent): void {
+    if (e.altKey && e.key === 'ArrowRight') {
+      e.preventDefault();
+      this.navigate(1);
+    } else if (e.altKey && e.key === 'ArrowLeft') {
+      e.preventDefault();
+      this.navigate(-1);
+    }
   }
 }

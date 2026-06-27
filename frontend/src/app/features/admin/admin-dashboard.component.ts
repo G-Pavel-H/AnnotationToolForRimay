@@ -1,7 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -55,6 +55,12 @@ export class AdminDashboardComponent implements OnInit {
   private api = inject(ApiService);
   private snack = inject(MatSnackBar);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
+
+  // Tab order: 0 Progress, 1 Dataset, 2 Export. Driven by the ?tab= query param
+  // so returning from adjudication lands back on Dataset.
+  private readonly TAB_INDEX: Record<string, number> = { progress: 0, dataset: 1, export: 2 };
+  selectedTab = signal(0);
 
   phases = PHASES;
   loading = signal(false);
@@ -77,6 +83,8 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    const tab = this.route.snapshot.queryParamMap.get('tab');
+    if (tab && tab in this.TAB_INDEX) this.selectedTab.set(this.TAB_INDEX[tab]);
     this.refresh();
   }
 

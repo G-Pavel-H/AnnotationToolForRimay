@@ -2,7 +2,7 @@
   <h1>Admin dashboard</h1>
   @if (loading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
 
-  <mat-tab-group>
+  <mat-tab-group [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
     <!-- PROGRESS -->
     <mat-tab label="Progress">
       <div style="padding-top:16px;">
