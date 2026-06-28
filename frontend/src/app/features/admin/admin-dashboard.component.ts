@@ -12,6 +12,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../core/api.service';
 import { Phase, ProgressResponse, Requirement } from '../../core/models';
 
@@ -33,6 +34,7 @@ const PHASES: Phase[] = ['training', 'pilot', 'main'];
     MatTabsModule,
     MatChipsModule,
     MatExpansionModule,
+    MatTooltipModule,
   ],
   templateUrl: './admin-dashboard.component.html',
   styles: [
@@ -186,6 +188,35 @@ export class AdminDashboardComponent implements OnInit {
 
   adjudicate(r: Requirement): void {
     this.router.navigate(['/admin/adjudicate', r._id]);
+  }
+
+  // --- per-requirement CRUD ---
+  addRequirement(): void {
+    this.router.navigate(['/admin/requirement/new']);
+  }
+
+  editRequirement(r: Requirement): void {
+    this.router.navigate(['/admin/requirement', r._id, 'edit']);
+  }
+
+  deleteRequirement(r: Requirement): void {
+    const ok = window.confirm(
+      `Delete requirement "${r.reqId}"?\n\n` +
+        `This also deletes any annotations and adjudication for it. ` +
+        `This cannot be undone.`
+    );
+    if (!ok) return;
+    this.api.deleteRequirement(r._id).subscribe({
+      next: (res) => {
+        const extra =
+          res.deletedAnnotations > 0
+            ? ` (also removed ${res.deletedAnnotations} annotation${res.deletedAnnotations === 1 ? '' : 's'})`
+            : '';
+        this.snack.open(`Deleted "${res.reqId}"${extra}.`, '', { duration: 3000 });
+        this.refresh();
+      },
+      error: () => this.snack.open('Delete failed', 'Dismiss', { duration: 4000 }),
+    });
   }
 
   // --- danger zone: wipe the whole dataset ---

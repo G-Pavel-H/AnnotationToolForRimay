@@ -58,6 +58,108 @@ router.post('/requirements/import', upload.single('file'), async (req, res, next
 });
 
 /**
+ * Build a clean requirement field set from a request body. `nlText` falls back
+ * to `nlDescription` when omitted (e.g. a manually-added requirement).
+ */
+function sanitizeRequirementBody(body = {}) {
+  const out = {};
+  if (typeof body.reqId === 'string') out.reqId = body.reqId.trim();
+  if (typeof body.nlDescription === 'string') out.nlDescription = body.nlDescription;
+  if (typeof body.nlText === 'string') out.nlText = body.nlText;
+  if (PHASES.includes(body.phase)) out.phase = body.phase;
+  if (body.pragyanIncomp === 0 || body.pragyanIncomp === 1) out.pragyanIncomp = body.pragyanIncomp;
+  if (Number.isFinite(body.order)) out.order = body.order;
+  return out;
+}
+
+/**
+ * POST /api/admin/requirements -> create a single requirement manually.
+ */
+router.post('/requirements', async (req, res, next) => {
+  try {
+    const fields = sanitizeRequirementBody(req.body);
+    if (!fields.reqId) return res.status(400).json({ error: 'reqId is required' });
+    if (!fields.nlText && !fields.nlDescription) {
+      return res.status(400).json({ error: 'A description (or full text) is required' });
+    }
+    if (!fields.nlText) fields.nlText = fields.nlDescription;
+    if (!fields.nlDescription) fields.nlDescription = fields.nlText;
+
+    const clash = await Requirement.findOne({ reqId: fields.reqId });
+    if (clash) return res.status(409).json({ error: `Req ID "${fields.reqId}" already exists` });
+
+    if (!Number.isFinite(fields.order)) {
+      const last = await Requirement.findOne().sort({ order: -1 });
+      fields.order = last ? last.order + 1 : 0;
+    }
+    if (!fields.phase) fields.phase = 'main';
+    if (fields.pragyanIncomp == null) fields.pragyanIncomp = 0;
+
+    const requirement = await Requirement.create(fields);
+    res.status(201).json({ requirement });
+  } catch (err) {
+    if (err && err.code === 11000) {
+      return res.status(409).json({ error: 'Req ID already exists' });
+    }
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/admin/requirements/:id -> edit a requirement's fields.
+ */
+router.put('/requirements/:id', async (req, res, next) => {
+  try {
+    const requirement = await Requirement.findById(req.params.id);
+    if (!requirement) return res.status(404).json({ error: 'Requirement not found' });
+
+    const fields = sanitizeRequirementBody(req.body);
+
+    // If reqId is changing, ensure it stays unique.
+    if (fields.reqId && fields.reqId !== requirement.reqId) {
+      const clash = await Requirement.findOne({ reqId: fields.reqId, _id: { $ne: requirement._id } });
+      if (clash) return res.status(409).json({ error: `Req ID "${fields.reqId}" already exists` });
+    }
+
+    Object.assign(requirement, fields);
+    if (!requirement.nlText) requirement.nlText = requirement.nlDescription;
+    await requirement.save();
+    res.json({ requirement });
+  } catch (err) {
+    if (err && err.code === 11000) {
+      return res.status(409).json({ error: 'Req ID already exists' });
+    }
+    next(err);
+  }
+});
+
+/**
+ * DELETE /api/admin/requirements/:id -> delete a requirement and cascade-delete
+ * its annotations and adjudication (so nothing is left orphaned).
+ */
+router.delete('/requirements/:id', async (req, res, next) => {
+  try {
+    const requirement = await Requirement.findById(req.params.id);
+    if (!requirement) return res.status(404).json({ error: 'Requirement not found' });
+
+    const [annRes, adjRes] = await Promise.all([
+      Annotation.deleteMany({ requirementId: requirement._id }),
+      Adjudication.deleteMany({ requirementId: requirement._id }),
+    ]);
+    await Requirement.deleteOne({ _id: requirement._id });
+
+    res.json({
+      deleted: true,
+      reqId: requirement.reqId,
+      deletedAnnotations: annRes.deletedCount,
+      deletedAdjudications: adjRes.deletedCount,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * PUT /api/admin/requirements/:id/phase -> set phase for one requirement.
  */
 router.put('/requirements/:id/phase', async (req, res, next) => {

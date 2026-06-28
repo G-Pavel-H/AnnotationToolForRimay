@@ -55,6 +55,28 @@ export class ApiService {
     return this.http.put<{ requirement: Requirement }>(`/api/admin/requirements/${id}/phase`, { phase });
   }
 
+  createRequirement(payload: Partial<Requirement>): Observable<{ requirement: Requirement }> {
+    return this.http.post<{ requirement: Requirement }>('/api/admin/requirements', payload);
+  }
+
+  updateRequirement(id: string, payload: Partial<Requirement>): Observable<{ requirement: Requirement }> {
+    return this.http.put<{ requirement: Requirement }>(`/api/admin/requirements/${id}`, payload);
+  }
+
+  deleteRequirement(id: string): Observable<{
+    deleted: boolean;
+    reqId: string;
+    deletedAnnotations: number;
+    deletedAdjudications: number;
+  }> {
+    return this.http.delete<{
+      deleted: boolean;
+      reqId: string;
+      deletedAnnotations: number;
+      deletedAdjudications: number;
+    }>(`/api/admin/requirements/${id}`);
+  }
+
   bulkSetPhase(ids: string[], phase: Phase): Observable<{ modified: number }> {
     return this.http.put<{ modified: number }>('/api/admin/requirements/phase/bulk', { ids, phase });
   }

@@ -36,5 +36,21 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/admin/adjudication.component').then((m) => m.AdjudicationComponent),
   },
+  {
+    path: 'admin/requirement/new',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () =>
+      import('./features/admin/requirement-editor.component').then(
+        (m) => m.RequirementEditorComponent
+      ),
+  },
+  {
+    path: 'admin/requirement/:id/edit',
+    canActivate: [authGuard, adminGuard],
+    loadComponent: () =>
+      import('./features/admin/requirement-editor.component').then(
+        (m) => m.RequirementEditorComponent
+      ),
+  },
   { path: '**', redirectTo: 'dashboard' },
 ];

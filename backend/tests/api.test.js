@@ -186,6 +186,75 @@ test('admin export includes pragyanIncomp and flattened slots', async () => {
   assert.ok(csv.text.includes('pragyanIncomp'));
 });
 
+test('admin can create a requirement; duplicate reqId rejected; annotators blocked', async () => {
+  const adminToken = await login('admin', 'admin123');
+
+  const created = await request
+    .post('/api/admin/requirements')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ reqId: '900-New', nlDescription: 'A manually added requirement.', phase: 'main', pragyanIncomp: 1 });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  assert.equal(created.body.requirement.reqId, '900-New');
+  // nlText falls back to the description when omitted.
+  assert.equal(created.body.requirement.nlText, 'A manually added requirement.');
+  assert.equal(created.body.requirement.pragyanIncomp, 1);
+
+  const dup = await request
+    .post('/api/admin/requirements')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ reqId: '900-New', nlDescription: 'dup' });
+  assert.equal(dup.status, 409);
+
+  const annToken = await login('ann1', 'pass123');
+  const blocked = await request
+    .post('/api/admin/requirements')
+    .set('Authorization', `Bearer ${annToken}`)
+    .send({ reqId: '901-X', nlDescription: 'nope' });
+  assert.equal(blocked.status, 403);
+
+  // The annotator must not see the admin-only pragyan label on the new requirement.
+  const list = await request.get('/api/requirements').set('Authorization', `Bearer ${annToken}`);
+  const seen = list.body.requirements.find((r) => r.reqId === '900-New');
+  assert.ok(seen);
+  assert.equal(seen.pragyanIncomp, undefined);
+});
+
+test('admin can edit a requirement and delete it (cascading annotations)', async () => {
+  const adminToken = await login('admin', 'admin123');
+  const created = await request
+    .post('/api/admin/requirements')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ reqId: '902-Edit', nlDescription: 'before' });
+  const id = created.body.requirement._id;
+
+  // Edit the text.
+  const edited = await request
+    .put(`/api/admin/requirements/${id}`)
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({ nlDescription: 'after the fix' });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.body.requirement.nlDescription, 'after the fix');
+
+  // An annotator adds an annotation to it.
+  const annToken = await login('ann1', 'pass123');
+  await request
+    .post('/api/annotations')
+    .set('Authorization', `Bearer ${annToken}`)
+    .send({ requirementId: id, notes: 'will be cascaded away' });
+
+  // Annotators cannot delete.
+  const blocked = await request.delete(`/api/admin/requirements/${id}`).set('Authorization', `Bearer ${annToken}`);
+  assert.equal(blocked.status, 403);
+
+  // Admin deletes; the annotation is cascaded.
+  const del = await request.delete(`/api/admin/requirements/${id}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(del.status, 200, JSON.stringify(del.body));
+  assert.equal(del.body.deletedAnnotations, 1);
+
+  const gone = await request.get(`/api/requirements/${id}`).set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(gone.status, 404);
+});
+
 test('clear-data endpoint blocked for annotators', async () => {
   const token = await login('ann1', 'pass123');
   const res = await request.delete('/api/admin/data').set('Authorization', `Bearer ${token}`);
