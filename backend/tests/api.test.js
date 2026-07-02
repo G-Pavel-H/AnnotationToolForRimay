@@ -186,6 +186,29 @@ test('admin export includes pragyanIncomp and flattened slots', async () => {
   assert.ok(csv.text.includes('pragyanIncomp'));
 });
 
+test('export can be scoped to a single phase', async () => {
+  const token = await login('admin', 'admin123');
+
+  // The seeded requirement 72-Signal is in the "pilot" phase.
+  const all = await request.get('/api/admin/export?format=json').set('Authorization', `Bearer ${token}`);
+  const pilot = await request.get('/api/admin/export?format=json&phase=pilot').set('Authorization', `Bearer ${token}`);
+  const main = await request.get('/api/admin/export?format=json&phase=main').set('Authorization', `Bearer ${token}`);
+
+  assert.equal(pilot.body.phase, 'pilot');
+  assert.ok(pilot.body.rows.every((r) => r.phase === 'pilot'));
+  assert.ok(pilot.body.rows.some((r) => r.reqId === '72-Signal'));
+  // Scoped export is a subset of all.
+  assert.ok(pilot.body.count <= all.body.count);
+  // The pilot requirement should not appear in the main-only export.
+  assert.ok(main.body.rows.every((r) => r.reqId !== '72-Signal'));
+
+  const csv = await request
+    .get('/api/admin/export?format=csv&phase=pilot')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(csv.status, 200);
+  assert.match(csv.headers['content-disposition'], /rimay_export_pilot\.csv/);
+});
+
 test('admin can create a requirement; duplicate reqId rejected; annotators blocked', async () => {
   const adminToken = await login('admin', 'admin123');
 

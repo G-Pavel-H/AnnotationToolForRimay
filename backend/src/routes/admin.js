@@ -319,31 +319,38 @@ function computeHadDisagreement(annotations) {
 }
 
 /**
- * GET /api/admin/export?format=json|csv
- * Full analysis-ready export (admin-only, so pragyanIncomp is included).
+ * GET /api/admin/export?format=json|csv&phase=training|pilot|main
+ * Analysis-ready export (admin-only, so pragyanIncomp is included). An optional
+ * `phase` limits the export to that phase's requirements; omitted = all phases.
  */
 router.get('/export', async (req, res, next) => {
   try {
     const format = (req.query.format || 'json').toLowerCase();
+    const phase = PHASES.includes(req.query.phase) ? req.query.phase : null;
+    const reqFilter = phase ? { phase } : {};
+
     const [requirements, annotations, adjudications, users] = await Promise.all([
-      Requirement.find().sort({ order: 1, reqId: 1 }),
+      Requirement.find(reqFilter).sort({ order: 1, reqId: 1 }),
       Annotation.find(),
       Adjudication.find(),
       User.find(),
     ]);
 
+    // buildExportRows only emits rows for the requirements passed in, so filtering
+    // requirements by phase is enough to scope annotations + gold to that phase.
     const rows = buildExportRows(requirements, annotations, adjudications, users);
+    const scope = phase || 'all';
 
     if (format === 'csv') {
       const csv = rowsToCsv(rows);
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename="rimay_export.csv"');
+      res.setHeader('Content-Disposition', `attachment; filename="rimay_export_${scope}.csv"`);
       return res.send(csv);
     }
 
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', 'attachment; filename="rimay_export.json"');
-    res.json({ exportedAt: new Date().toISOString(), count: rows.length, rows });
+    res.setHeader('Content-Disposition', `attachment; filename="rimay_export_${scope}.json"`);
+    res.json({ exportedAt: new Date().toISOString(), phase: scope, count: rows.length, rows });
   } catch (err) {
     next(err);
   }

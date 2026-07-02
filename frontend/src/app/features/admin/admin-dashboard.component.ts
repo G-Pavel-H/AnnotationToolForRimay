@@ -172,13 +172,22 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   // --- export ---
+  exportScope: Phase | 'all' = 'all';
+
+  exportCount(): number {
+    return this.exportScope === 'all'
+      ? this.requirements().length
+      : this.phaseCount(this.exportScope);
+  }
+
   export(format: 'json' | 'csv'): void {
-    this.api.exportData(format).subscribe({
+    const scope = this.exportScope;
+    this.api.exportData(format, scope).subscribe({
       next: (blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `rimay_export.${format}`;
+        a.download = `rimay_export_${scope}.${format}`;
         a.click();
         URL.revokeObjectURL(url);
       },

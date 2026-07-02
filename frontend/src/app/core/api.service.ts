@@ -117,11 +117,13 @@ export class ApiService {
     }>('/api/admin/data');
   }
 
-  exportUrl(format: 'json' | 'csv'): string {
-    return `/api/admin/export?format=${format}`;
+  exportUrl(format: 'json' | 'csv', phase?: Phase | 'all'): string {
+    let url = `/api/admin/export?format=${format}`;
+    if (phase && phase !== 'all') url += `&phase=${phase}`;
+    return url;
   }
 
-  exportData(format: 'json' | 'csv'): Observable<Blob> {
-    return this.http.get(this.exportUrl(format), { responseType: 'blob' });
+  exportData(format: 'json' | 'csv', phase?: Phase | 'all'): Observable<Blob> {
+    return this.http.get(this.exportUrl(format, phase), { responseType: 'blob' });
   }
 }
