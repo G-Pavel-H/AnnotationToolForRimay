@@ -90,6 +90,14 @@ from the pairwise comparison (noted in the report).
 > This is deliberately dependency-light and reproducible. If you later want
 > *semantic* similarity (embedding-based), that's an easy add-on — ask for it.
 
+## Experiments
+
+Completed analysis runs are stored under `analysis/experiments/`, each in its own
+folder with the input export, both reports, and a README summarising it:
+
+- [`experiments/exp01_pilot/`](./experiments/exp01_pilot/README.md) — the first
+  pilot (10 requirements, 4 annotators, no gold).
+
 ## Notes
 
 - `requirements.txt` is intentionally minimal (`pandas`, `numpy`) — Fleiss' Kappa
