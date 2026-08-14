@@ -8,6 +8,13 @@ app, API, or database; it just reads the CSV the admin **Export** produces.
 `pilot_agreement.py` measures inter-annotator agreement on the categorical
 fields before running the main batch.
 
+> **The app now computes this too** — Admin → Agreement, which additionally
+> reports pairwise Cohen's Kappa. `backend/src/utils/agreement.js` is a port of
+> the maths below and is tested against this folder's committed
+> `exp01_pilot/agreement_report.md`, so the two agree exactly. Keep using this
+> script when you want a reproducible offline artefact from a saved export; use
+> the app when you want the answer now.
+
 ### Setup (once)
 
 ```bash
@@ -19,7 +26,7 @@ pip install -r requirements.txt
 
 ### Run
 
-Export a phase from the app (Admin → Export → scope: Pilot), then:
+Export a group from the app (Admin → Export → scope: the group you want), then:
 
 ```bash
 python pilot_agreement.py --export rimay_export_pilot.csv --out pilot_report.md

@@ -1,0 +1,278 @@
+<!-- Scope -->
+<mat-card style="margin-bottom:16px;">
+  <mat-card-content style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding-top:16px;">
+    <mat-form-field appearance="outline" style="width:220px;" subscriptSizing="dynamic">
+      <mat-label>Group</mat-label>
+      <mat-select [(ngModel)]="scope" (selectionChange)="load()">
+        <mat-option value="all">All groups</mat-option>
+        @for (p of phases(); track p) { <mat-option [value]="p">{{ p }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-button-toggle-group [(ngModel)]="status" (change)="load()" style="height:40px;">
+      <mat-button-toggle value="all" matTooltip="Count drafts as well as submitted annotations">
+        All annotations
+      </mat-button-toggle>
+      <mat-button-toggle value="submitted" matTooltip="Only count submitted annotations">
+        Submitted only
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+
+    <button mat-stroked-button (click)="load()"><mat-icon>refresh</mat-icon> Recompute</button>
+    <span class="spacer" style="flex:1;"></span>
+    @if (report() && !report()!.empty) {
+      <button mat-stroked-button (click)="downloadMarkdown()" matTooltip="Save this report as markdown">
+        <mat-icon>download</mat-icon> Report (.md)
+      </button>
+    }
+  </mat-card-content>
+</mat-card>
+
+@if (loading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+@if (report(); as r) {
+  @if (r.empty) {
+    <mat-card>
+      <mat-card-content style="padding-top:16px;">
+        <p class="muted">{{ r.reason }}</p>
+        <p class="muted" style="font-size:13px;">
+          Agreement needs at least two annotators to have rated the same requirements. Annotate a
+          few requirements from more than one account, then recompute.
+        </p>
+      </mat-card-content>
+    </mat-card>
+  } @else {
+    <!-- Summary -->
+    <mat-card style="margin-bottom:16px;">
+      <mat-card-header>
+        <mat-card-title>{{ r.meta.phase || 'All groups' }}</mat-card-title>
+        <mat-card-subtitle>
+          {{ r.meta.nRequirements }} requirement{{ r.meta.nRequirements === 1 ? '' : 's' }} ·
+          {{ r.meta.nRatings }} ratings ·
+          {{ r.meta.annotators.length }} annotators ({{ r.meta.annotators.join(', ') }}) ·
+          {{ r.meta.status === 'submitted' ? 'submitted only' : 'drafts included' }}
+        </mat-card-subtitle>
+      </mat-card-header>
+    </mat-card>
+
+    <!-- Slots -->
+    <mat-card style="margin-bottom:16px;">
+      <mat-card-header><mat-card-title>Slot agreement</mat-card-title></mat-card-header>
+      <mat-card-content>
+        <div class="scroll">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Slot</th><th>Fleiss' κ</th><th>Band</th><th>Mean Cohen's κ</th>
+                <th>Unanimous</th><th>≥(n−1)-of-n</th><th>Reqs</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of r.slots; track f.field) {
+                <tr>
+                  <td>
+                    {{ f.field }}
+                    @if (f.belowSubstantial) {
+                      <mat-icon
+                        class="flagged"
+                        style="font-size:16px; height:16px; width:16px; vertical-align:text-bottom;"
+                        matTooltip="Below 'substantial' (< 0.61) — candidate for refining the annotation guide"
+                        >flag</mat-icon
+                      >
+                    }
+                  </td>
+                  <td>{{ kappa(f.kappa) }}</td>
+                  <td class="muted">{{ f.band }}</td>
+                  <td>{{ kappa(f.cohen.mean) }}</td>
+                  <td>{{ pct(f.unanimous) }}</td>
+                  <td>{{ pct(f.majority) }}</td>
+                  <td class="muted">{{ f.nSubjects }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <dl class="legend">
+          <div><dt>Fleiss' κ →</dt><dd>chance-corrected agreement across all annotators at once — the headline number</dd></div>
+          <div><dt>Cohen's κ →</dt><dd>the same idea for one pair of annotators, averaged over every pair here; expand "who disagrees with whom" for the breakdown</dd></div>
+          <div><dt>Band →</dt><dd>Landis &amp; Koch reading of κ: poor · slight · fair · moderate · substantial · almost perfect</dd></div>
+          <div><dt>Unanimous →</dt><dd>share of requirements where every annotator chose the same value</dd></div>
+          <div><dt>≥(n−1)-of-n →</dt><dd>share where all but at most one agreed (3-of-4 with four annotators)</dd></div>
+          <div><dt>n/a →</dt><dd>κ is undefined because a single category was used throughout — read the raw agreement instead (the <em>Kappa paradox</em>)</dd></div>
+        </dl>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Other fields -->
+    <mat-card style="margin-bottom:16px;">
+      <mat-card-header><mat-card-title>Other categorical fields</mat-card-title></mat-card-header>
+      <mat-card-content>
+        <div class="scroll">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Field</th><th>Fleiss' κ</th><th>Band</th><th>Mean Cohen's κ</th>
+                <th>Unanimous</th><th>≥(n−1)-of-n</th><th>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of r.extras; track f.field) {
+                <tr>
+                  <td>{{ f.field }}</td>
+                  <td>{{ kappa(f.kappa) }}</td>
+                  <td class="muted">{{ f.band }}</td>
+                  <td>{{ kappa(f.cohen.mean) }}</td>
+                  <td>{{ pct(f.unanimous) }}</td>
+                  <td>{{ pct(f.majority) }}</td>
+                  <td class="muted" style="text-align:left; white-space:normal;">{{ f.note }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Pairwise Cohen -->
+    <mat-card style="margin-bottom:16px;">
+      <mat-card-header>
+        <mat-card-title>Who disagrees with whom</mat-card-title>
+        <mat-card-subtitle>Cohen's κ per pair of annotators, field by field</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <mat-accordion multi>
+          @for (f of allFields(r); track f.field) {
+            <mat-expansion-panel>
+              <mat-expansion-panel-header>
+                <mat-panel-title>{{ f.field }}</mat-panel-title>
+                <mat-panel-description>mean κ {{ kappa(f.cohen.mean) }} · {{ distribution(f) }}</mat-panel-description>
+              </mat-expansion-panel-header>
+              <div class="scroll">
+                <table class="data">
+                  <thead>
+                    <tr><th>Pair</th><th>Cohen's κ</th><th>Band</th><th>Raw agreement</th><th>Reqs</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (p of f.cohen.pairs; track p.a + p.b) {
+                      <tr>
+                        <td>{{ p.a }} ↔ {{ p.b }}</td>
+                        <td>{{ kappa(p.kappa) }}</td>
+                        <td class="muted">{{ p.band }}</td>
+                        <td>{{ pct(p.observed) }}</td>
+                        <td class="muted">{{ p.n }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </mat-expansion-panel>
+          }
+        </mat-accordion>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Gold -->
+    @if (r.gold; as gold) {
+      <mat-card style="margin-bottom:16px;">
+        <mat-card-header>
+          <mat-card-title>Agreement with the adjudicated gold</mat-card-title>
+          <mat-card-subtitle>
+            Share of each annotator's slot values matching the gold, over requirements that have one
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="scroll">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Annotator</th>
+                  @for (s of gold.slots; track s) { <th>{{ s }}</th> }
+                </tr>
+              </thead>
+              <tbody>
+                @for (rater of gold.raters; track rater) {
+                  <tr>
+                    <td>{{ rater }}</td>
+                    @for (s of gold.slots; track s) {
+                      <td>
+                        {{ pct(gold.table[rater][s].rate) }}
+                        <span class="muted" style="font-size:12px;">
+                          ({{ gold.table[rater][s].matches }}/{{ gold.table[rater][s].comparable }})
+                        </span>
+                      </td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Disagreement worksheet -->
+    <mat-card style="margin-bottom:16px;">
+      <mat-card-header>
+        <mat-card-title>Disagreement worksheet</mat-card-title>
+        <mat-card-subtitle>
+          @if (r.disagreements.length) {
+            {{ r.disagreements.length }} (requirement, field) cells where annotators split — the agenda
+            for adjudication
+          } @else {
+            Every rating was unanimous
+          }
+        </mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        @if (r.disagreements.length) {
+          <div class="scroll">
+            <table class="data">
+              <thead>
+                <tr><th>Requirement</th><th>Field</th><th>Votes</th><th></th></tr>
+              </thead>
+              <tbody>
+                @for (d of r.disagreements; track d.reqId + d.field) {
+                  <tr>
+                    <td>{{ d.reqId }}</td>
+                    <td>{{ d.field }}</td>
+                    <td style="text-align:left; white-space:normal;">
+                      @for (x of d.distribution; track x.value) {
+                        <span>{{ x.value }}×{{ x.count }}&nbsp;&nbsp;</span>
+                      }
+                      <div class="votes">
+                        @for (v of d.votes; track v.rater) { <span>{{ v.rater }}: {{ v.value }}&nbsp;&nbsp;</span> }
+                      </div>
+                    </td>
+                    <td>
+                      <button mat-stroked-button (click)="adjudicate(d.requirementId)" [disabled]="!d.requirementId">
+                        <mat-icon>gavel</mat-icon> Adjudicate
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Data notes -->
+    @if (r.warnings.length) {
+      <mat-card>
+        <mat-card-content style="padding-top:8px;">
+          <mat-expansion-panel>
+            <mat-expansion-panel-header>
+              <mat-panel-title>Data notes</mat-panel-title>
+              <mat-panel-description>{{ r.warnings.length }} rating(s) skipped or flagged</mat-panel-description>
+            </mat-expansion-panel-header>
+            <ul class="muted" style="font-size:13px; margin:0; padding-left:18px;">
+              @for (w of r.warnings; track w) { <li>{{ w }}</li> }
+            </ul>
+          </mat-expansion-panel>
+        </mat-card-content>
+      </mat-card>
+    }
+  }
+}

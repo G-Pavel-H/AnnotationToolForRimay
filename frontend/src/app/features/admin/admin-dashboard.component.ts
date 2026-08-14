@@ -13,10 +13,18 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { ApiService } from '../../core/api.service';
 import { Phase, ProgressResponse, Requirement } from '../../core/models';
+import { AgreementComponent } from './agreement.component';
 
-const PHASES: Phase[] = ['training', 'pilot', 'main'];
+/**
+ * Sentinel for the "＋ New group…" entry in a group picker. It is never stored:
+ * picking it prompts for a name, which is what actually gets saved.
+ */
+const NEW_GROUP = '__new__';
 
 @Component({
   selector: 'app-admin-dashboard',
@@ -35,6 +43,10 @@ const PHASES: Phase[] = ['training', 'pilot', 'main'];
     MatChipsModule,
     MatExpansionModule,
     MatTooltipModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatAutocompleteModule,
+    AgreementComponent,
   ],
   templateUrl: './admin-dashboard.component.html',
   styles: [
@@ -59,29 +71,52 @@ export class AdminDashboardComponent implements OnInit {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
 
-  // Tab order: 0 Progress, 1 Dataset, 2 Export. Driven by the ?tab= query param
-  // so returning from adjudication lands back on Dataset.
-  private readonly TAB_INDEX: Record<string, number> = { progress: 0, dataset: 1, export: 2 };
+  // Tab order: 0 Progress, 1 Dataset, 2 Agreement, 3 Export. Driven by the
+  // ?tab= query param so returning from adjudication lands back on Dataset.
+  private readonly TAB_INDEX: Record<string, number> = {
+    progress: 0,
+    dataset: 1,
+    agreement: 2,
+    export: 3,
+  };
   selectedTab = signal(0);
 
-  phases = PHASES;
   loading = signal(false);
   progress = signal<ProgressResponse | null>(null);
   requirements = signal<Requirement[]>([]);
   dragging = signal(false);
-  bulkPhase: Phase = 'pilot';
 
-  progressColumns = ['annotator', 'training', 'pilot', 'main'];
+  // Groups are free-form names owned by the data, not a fixed list: whatever
+  // the requirements use is what the UI offers, plus the suggested starters
+  // when the dataset is still empty.
+  phases = signal<Phase[]>([]);
+  suggested = signal<Phase[]>([]);
+  bulkPhase = '';
+  importPhase = '';
+  renameFrom = '';
+  renameTo = '';
+  readonly NEW_GROUP = NEW_GROUP;
 
-  // Requirements grouped by phase, so the admin can find/adjudicate per phase.
+  progressColumns = computed(() => ['annotator', ...(this.progress()?.phases ?? [])]);
+
+  // Requirements grouped for the dataset accordion, in the group order the API
+  // reports (largest group first).
   byPhase = computed(() => {
-    const groups: Record<Phase, Requirement[]> = { training: [], pilot: [], main: [] };
-    for (const r of this.requirements()) groups[r.phase].push(r);
+    const groups = new Map<Phase, Requirement[]>();
+    this.phases().forEach((p) => groups.set(p, []));
+    for (const r of this.requirements()) {
+      if (!groups.has(r.phase)) groups.set(r.phase, []);
+      groups.get(r.phase)!.push(r);
+    }
     return groups;
   });
 
   phaseCount(phase: Phase): number {
-    return this.byPhase()[phase].length;
+    return this.byPhase().get(phase)?.length ?? 0;
+  }
+
+  requirementsIn(phase: Phase): Requirement[] {
+    return this.byPhase().get(phase) ?? [];
   }
 
   ngOnInit(): void {
@@ -94,6 +129,16 @@ export class AdminDashboardComponent implements OnInit {
     this.loading.set(true);
     this.api.getProgress().subscribe({
       next: (p) => this.progress.set(p),
+      error: () => {},
+    });
+    this.api.listPhases().subscribe({
+      next: (res) => {
+        const inUse = res.phases.map((p) => p.phase);
+        this.phases.set(inUse.length ? inUse : res.suggested);
+        this.suggested.set(res.suggested);
+        if (!this.bulkPhase) this.bulkPhase = this.phases()[0] ?? 'main';
+        if (!this.importPhase) this.importPhase = this.phases()[0] ?? 'main';
+      },
       error: () => {},
     });
     this.api.listRequirements().subscribe({
@@ -131,12 +176,12 @@ export class AdminDashboardComponent implements OnInit {
 
   private importFile(file: File): void {
     this.loading.set(true);
-    this.api.importRequirements(file).subscribe({
+    this.api.importRequirements(file, this.importPhase.trim() || undefined).subscribe({
       next: (res) => {
         this.snack.open(
-          `Imported ${res.imported} (created ${res.created}, updated ${res.updated})`,
+          `Imported ${res.imported} into "${res.phase}" (created ${res.created}, updated ${res.updated})`,
           '',
-          { duration: 3000 }
+          { duration: 3500 }
         );
         this.refresh();
       },
@@ -147,27 +192,83 @@ export class AdminDashboardComponent implements OnInit {
     });
   }
 
-  // --- phase assignment ---
+  // --- groups ---
+  /** The name typed in a "new group" prompt, or null if the admin backed out. */
+  private askForGroup(message: string, initial = ''): string | null {
+    const typed = window.prompt(message, initial);
+    if (typed === null) return null;
+    const name = typed.trim().replace(/\s+/g, ' ');
+    if (!name) {
+      this.snack.open('A group needs a name.', '', { duration: 2500 });
+      return null;
+    }
+    return name;
+  }
+
   setPhase(r: Requirement, phase: Phase): void {
-    this.api.setPhase(r._id, phase).subscribe({
+    const target = phase === NEW_GROUP ? this.askForGroup('Name the new group:') : phase;
+    if (!target) {
+      // Backed out: re-render so the select snaps back to the current value.
+      this.requirements.set([...this.requirements()]);
+      return;
+    }
+    this.api.setPhase(r._id, target).subscribe({
       next: () => {
-        r.phase = phase;
+        r.phase = target;
         this.requirements.set([...this.requirements()]);
-        this.api.getProgress().subscribe((p) => this.progress.set(p));
+        this.refresh();
       },
-      error: () => this.snack.open('Failed to set phase', 'Dismiss', { duration: 4000 }),
+      error: (err) =>
+        this.snack.open(err?.error?.error || 'Failed to set group', 'Dismiss', { duration: 4000 }),
     });
   }
 
   bulkAssign(): void {
+    const phase = this.bulkPhase.trim().replace(/\s+/g, ' ');
+    if (!phase) {
+      this.snack.open('Type or pick a group name first.', '', { duration: 2500 });
+      return;
+    }
     const ids = this.requirements().map((r) => r._id);
     if (!ids.length) return;
-    this.api.bulkSetPhase(ids, this.bulkPhase).subscribe({
+    if (!window.confirm(`Move all ${ids.length} requirements into "${phase}"?`)) return;
+
+    this.api.bulkSetPhase(ids, phase).subscribe({
       next: (res) => {
-        this.snack.open(`Set ${res.modified} requirements to ${this.bulkPhase}`, '', { duration: 2500 });
+        this.snack.open(`Moved ${res.modified} requirements into "${phase}"`, '', { duration: 2500 });
         this.refresh();
       },
-      error: () => this.snack.open('Bulk assign failed', 'Dismiss', { duration: 4000 }),
+      error: (err) =>
+        this.snack.open(err?.error?.error || 'Bulk assign failed', 'Dismiss', { duration: 4000 }),
+    });
+  }
+
+  renameGroup(): void {
+    const from = this.renameFrom.trim();
+    const to = this.renameTo.trim().replace(/\s+/g, ' ');
+    if (!from || !to) {
+      this.snack.open('Pick a group and type its new name.', '', { duration: 2500 });
+      return;
+    }
+    const merging = this.phases().includes(to) && to !== from;
+    if (merging && !window.confirm(`"${to}" already exists — this merges "${from}" into it. Continue?`)) {
+      return;
+    }
+    this.api.renamePhase(from, to).subscribe({
+      next: (res) => {
+        this.snack.open(
+          res.merged
+            ? `Merged ${res.modified} requirements into "${to}"`
+            : `Renamed "${from}" to "${to}" (${res.modified} requirements)`,
+          '',
+          { duration: 3000 }
+        );
+        this.renameFrom = '';
+        this.renameTo = '';
+        this.refresh();
+      },
+      error: (err) =>
+        this.snack.open(err?.error?.error || 'Rename failed', 'Dismiss', { duration: 4000 }),
     });
   }
 

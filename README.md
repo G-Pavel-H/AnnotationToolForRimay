@@ -2,9 +2,10 @@
 
 A local web app for a small team (4 annotators incl. the admin) to annotate
 natural-language requirements by converting them to **Rimay** (a controlled NL)
-and flagging structural incompleteness. The captured data feeds a separate
-Python pipeline that computes inter-annotator agreement (Fleiss' Kappa on the
-categorical slots) and conversion quality (similarity on the Rimay text).
+and flagging structural incompleteness. **Inter-annotator agreement (Fleiss' and
+Cohen's Kappa) is computed in the app** — Admin → Agreement. The export still
+feeds the separate Python pipeline for conversion quality (similarity on the
+Rimay text).
 
 This is an internal research tool, not a public product. It optimises for clean
 data capture, **blind annotation**, and a low-friction annotator experience.
@@ -48,8 +49,9 @@ AnnotationToolForRimay/
 - **annotator** — sees only their own assigned requirements and their own
   annotations. Never sees other annotators' work or the Pragyan incompleteness
   labels.
-- **admin** — manages the dataset, assigns phases, views all annotations, runs
-  adjudication, exports data. The admin is also an annotator.
+- **admin** — manages the dataset, organises requirements into groups, views all
+  annotations, runs adjudication, reads the agreement report, exports data. The
+  admin is also an annotator.
 
 `pragyanIncomp` is **never serialised to an annotator** — this is enforced in the
 requirements serializer (`backend/src/utils/serializers.js`), not just the UI.
@@ -145,7 +147,7 @@ format `username:password:Display Name`, then re-run `npm run seed`. Change
 
 - **users** — `username`, `passwordHash`, `displayName`, `role`.
 - **requirements** — `reqId`, `nlText`, `nlDescription`, `pragyanIncomp` (admin
-  only), `phase` (`training`/`pilot`/`main`), `order`.
+  only), `phase` (the **group**: any name you choose, default `main`), `order`.
 - **annotations** — one per (requirement, annotator), enforced by a unique
   compound index. Holds `rimayText`, the five `slots`
   (`present`/`implied`/`missing`), `conditionType`, `patternNumber`,
@@ -187,21 +189,59 @@ check the role.
 - `POST /api/annotations/:id/submit`
 
 **Admin**
-- `POST /api/admin/requirements/import` (multipart CSV)
+- `POST /api/admin/requirements/import` (multipart CSV; optional `phase` field)
+- `GET  /api/admin/phases` (groups in use + counts)
+- `PUT  /api/admin/phases/rename` (`{ from, to }`; renaming onto an existing group merges)
 - `PUT  /api/admin/requirements/:id/phase`
 - `PUT  /api/admin/requirements/phase/bulk`
 - `GET  /api/admin/progress`
 - `GET  /api/admin/annotations/:requirementId` (all annotators, side by side)
 - `POST /api/admin/adjudications/:requirementId`
-- `GET  /api/admin/export?format=json|csv`
+- `GET  /api/admin/agreement?phase=<group>&status=all|submitted`
+- `GET  /api/admin/export?format=json|csv&phase=<group>`
 
 ### Export shape
 
 Analysis-ready: **one record per (requirement, annotator)** with all slot values
 flattened (`slot_*`), the gold standard (`gold_*`, `canonicalRimay`), and
 `pragyanIncomp` joined in (export is admin-only, so the Pragyan label is included
-here on purpose). Requirements with no annotations still emit one row. The Python
-pipeline computes Kappa and similarity from this file.
+here on purpose). Requirements with no annotations still emit one row.
+
+## Groups
+
+Every requirement belongs to a **group** (the `phase` field). Groups are
+free-form: `training`, `pilot`, `main` are only the suggested starter names —
+type any name (up to 40 characters) and that group exists. The list of groups is
+just the distinct names in use, so nothing needs configuring.
+
+From **Admin → Dataset** you can pick the group new imports land in, move a
+single requirement (including to a brand-new group), move everything at once, and
+rename a group — renaming onto an existing name **merges** the two. Annotators
+see one tab per group they have work in.
+
+## Agreement (in-app)
+
+**Admin → Agreement** computes inter-annotator agreement over the same rows the
+export produces, scoped to one group or all, optionally ignoring drafts:
+
+- **Fleiss' Kappa** per slot and per extra categorical field (`overallIncomplete`,
+  `conditionType`, `nonAtomic`), across all annotators at once.
+- **Cohen's Kappa** for every pair of annotators, so you can see *who* disagrees
+  with whom, plus the mean over pairs.
+- **Raw agreement** (unanimous, ≥(n−1)-of-n) beside each Kappa, because Kappa
+  reads low when one category dominates (the *Kappa paradox*).
+- **Landis & Koch bands**, with anything below `substantial` (< 0.61) flagged as
+  a candidate for refining the annotation guide.
+- **Agreement with the adjudicated gold**, per annotator per slot.
+- A **disagreement worksheet** — every (requirement, field) where annotators
+  split, with the vote breakdown and a direct link into adjudication.
+- **Report (.md)** downloads the whole thing as markdown.
+
+The maths lives in `backend/src/utils/agreement.js` (pure functions, no DB) and
+is verified against the committed pilot report from the Python script, so the
+in-app and offline numbers agree exactly. `analysis/pilot_agreement.py` is still
+there for reproducible offline reports; the Rimay-text similarity analysis
+remains Python-only.
 
 ---
 
@@ -218,7 +258,7 @@ during the pilot **without a code change** — just edit the markdown and reload
 ## Non-goals
 
 No public registration, email, password reset, or role self-service. No in-app
-statistical analysis beyond raw progress counts (Kappa + similarity live in the
-Python pipeline). No reconciliation of the free-text Rimay conversions to a
-single gold value — they are stored and exported individually. No deployment
-hardening (HTTPS, rate limiting) — this runs locally for a known team.
+analysis of the free-text Rimay conversions — the similarity metrics stay in the
+Python pipeline, and the conversions are stored and exported individually rather
+than reconciled to a single gold value. No deployment hardening (HTTPS, rate
+limiting) — this runs locally for a known team.

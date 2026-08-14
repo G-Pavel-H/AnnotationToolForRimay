@@ -10,6 +10,13 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { parseRequirementsCsv } = require('../utils/csvParser');
 const { computeOverallIncomplete } = require('../utils/incompleteness');
 const { buildExportRows, rowsToCsv } = require('../utils/exporter');
+const { buildAgreementReport } = require('../utils/agreement');
+const {
+  SUGGESTED_PHASES,
+  DEFAULT_PHASE,
+  normalizePhase,
+  phaseCounts,
+} = require('../utils/phases');
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -17,12 +24,15 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 router.use(requireAuth, requireAdmin);
 
 const SLOT_KEYS = ['scope', 'condition', 'actor', 'modalVerb', 'action'];
-const PHASES = ['training', 'pilot', 'main'];
 const CONDITION_TYPES = ['precondition', 'trigger', 'temporal', 'none'];
+
+const BAD_PHASE = 'phase must be a non-empty name of at most 40 characters';
 
 /**
  * POST /api/admin/requirements/import
  * Multipart CSV upload. Parses the Pragyan corpus and upserts requirements.
+ * An optional `phase` field puts the newly created rows straight into a group;
+ * existing rows keep the group they are already in.
  */
 router.post('/requirements/import', upload.single('file'), async (req, res, next) => {
   try {
@@ -33,6 +43,7 @@ router.post('/requirements/import', upload.single('file'), async (req, res, next
     if (!parsed.length) {
       return res.status(400).json({ error: 'No valid requirements found in CSV' });
     }
+    const phase = normalizePhase((req.body || {}).phase) || DEFAULT_PHASE;
 
     let created = 0;
     let updated = 0;
@@ -47,11 +58,11 @@ router.post('/requirements/import', upload.single('file'), async (req, res, next
         await existing.save();
         updated += 1;
       } else {
-        await Requirement.create(r);
+        await Requirement.create({ ...r, phase });
         created += 1;
       }
     }
-    res.json({ imported: parsed.length, created, updated });
+    res.json({ imported: parsed.length, created, updated, phase });
   } catch (err) {
     next(err);
   }
@@ -66,7 +77,8 @@ function sanitizeRequirementBody(body = {}) {
   if (typeof body.reqId === 'string') out.reqId = body.reqId.trim();
   if (typeof body.nlDescription === 'string') out.nlDescription = body.nlDescription;
   if (typeof body.nlText === 'string') out.nlText = body.nlText;
-  if (PHASES.includes(body.phase)) out.phase = body.phase;
+  const phase = normalizePhase(body.phase);
+  if (phase) out.phase = phase;
   if (body.pragyanIncomp === 0 || body.pragyanIncomp === 1) out.pragyanIncomp = body.pragyanIncomp;
   if (Number.isFinite(body.order)) out.order = body.order;
   return out;
@@ -92,7 +104,7 @@ router.post('/requirements', async (req, res, next) => {
       const last = await Requirement.findOne().sort({ order: -1 });
       fields.order = last ? last.order + 1 : 0;
     }
-    if (!fields.phase) fields.phase = 'main';
+    if (!fields.phase) fields.phase = DEFAULT_PHASE;
     if (fields.pragyanIncomp == null) fields.pragyanIncomp = 0;
 
     const requirement = await Requirement.create(fields);
@@ -160,14 +172,48 @@ router.delete('/requirements/:id', async (req, res, next) => {
 });
 
 /**
- * PUT /api/admin/requirements/:id/phase -> set phase for one requirement.
+ * GET /api/admin/phases -> the groups currently in use, with their counts.
+ * `suggested` are only naming hints for an empty dataset; any name is valid.
+ */
+router.get('/phases', async (req, res, next) => {
+  try {
+    const requirements = await Requirement.find({}, 'phase');
+    res.json({ phases: phaseCounts(requirements), suggested: SUGGESTED_PHASES });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/admin/phases/rename -> rename a group across every requirement in it.
+ * Renaming onto an existing name merges the two groups, which is the only way
+ * to merge and is why it is not treated as an error.
+ * Body: { from, to }
+ */
+router.put('/phases/rename', async (req, res, next) => {
+  try {
+    const from = normalizePhase((req.body || {}).from);
+    const to = normalizePhase((req.body || {}).to);
+    if (!from || !to) return res.status(400).json({ error: BAD_PHASE });
+    if (from === to) return res.json({ modified: 0, from, to, merged: false });
+
+    const existing = await Requirement.countDocuments({ phase: to });
+    const result = await Requirement.updateMany({ phase: from }, { phase: to });
+    res.json({ modified: result.modifiedCount, from, to, merged: existing > 0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/admin/requirements/:id/phase -> set the group for one requirement.
+ * Any non-empty name is accepted; a name that does not exist yet creates the
+ * group implicitly (groups are just the distinct values in use).
  */
 router.put('/requirements/:id/phase', async (req, res, next) => {
   try {
-    const { phase } = req.body || {};
-    if (!PHASES.includes(phase)) {
-      return res.status(400).json({ error: `phase must be one of ${PHASES.join(', ')}` });
-    }
+    const phase = normalizePhase((req.body || {}).phase);
+    if (!phase) return res.status(400).json({ error: BAD_PHASE });
     const requirement = await Requirement.findByIdAndUpdate(
       req.params.id,
       { phase },
@@ -181,15 +227,14 @@ router.put('/requirements/:id/phase', async (req, res, next) => {
 });
 
 /**
- * PUT /api/admin/requirements/phase/bulk -> bulk-assign phase.
+ * PUT /api/admin/requirements/phase/bulk -> bulk-assign a group.
  * Body: { ids: [..], phase } or { phase } (applies to all).
  */
 router.put('/requirements/phase/bulk', async (req, res, next) => {
   try {
-    const { ids, phase } = req.body || {};
-    if (!PHASES.includes(phase)) {
-      return res.status(400).json({ error: `phase must be one of ${PHASES.join(', ')}` });
-    }
+    const { ids } = req.body || {};
+    const phase = normalizePhase((req.body || {}).phase);
+    if (!phase) return res.status(400).json({ error: BAD_PHASE });
     const filter = Array.isArray(ids) && ids.length ? { _id: { $in: ids } } : {};
     const result = await Requirement.updateMany(filter, { phase });
     res.json({ modified: result.modifiedCount });
@@ -199,7 +244,9 @@ router.put('/requirements/phase/bulk', async (req, res, next) => {
 });
 
 /**
- * GET /api/admin/progress -> per-annotator completion counts by phase.
+ * GET /api/admin/progress -> per-annotator completion counts per group.
+ * The group list is derived from the requirements, so a renamed or brand-new
+ * group shows up here without any code change.
  */
 router.get('/progress', async (req, res, next) => {
   try {
@@ -209,19 +256,22 @@ router.get('/progress', async (req, res, next) => {
       Annotation.find(),
     ]);
 
-    const totalsByPhase = { training: 0, pilot: 0, main: 0 };
-    const phaseByReq = new Map();
-    requirements.forEach((r) => {
-      totalsByPhase[r.phase] = (totalsByPhase[r.phase] || 0) + 1;
-      phaseByReq.set(r._id.toString(), r.phase);
+    const counted = phaseCounts(requirements);
+    const phases = counted.map((p) => p.phase);
+    const totalsByPhase = {};
+    counted.forEach((p) => {
+      totalsByPhase[p.phase] = p.count;
     });
 
+    const phaseByReq = new Map(
+      requirements.map((r) => [r._id.toString(), normalizePhase(r.phase) || DEFAULT_PHASE])
+    );
+
     const perAnnotator = users.map((u) => {
-      const counts = {
-        training: { draft: 0, submitted: 0 },
-        pilot: { draft: 0, submitted: 0 },
-        main: { draft: 0, submitted: 0 },
-      };
+      const counts = {};
+      phases.forEach((p) => {
+        counts[p] = { draft: 0, submitted: 0 };
+      });
       annotations
         .filter((a) => a.annotatorId.toString() === u._id.toString())
         .forEach((a) => {
@@ -237,7 +287,7 @@ router.get('/progress', async (req, res, next) => {
       };
     });
 
-    res.json({ totalsByPhase, perAnnotator });
+    res.json({ phases, totalsByPhase, perAnnotator });
   } catch (err) {
     next(err);
   }
@@ -319,14 +369,14 @@ function computeHadDisagreement(annotations) {
 }
 
 /**
- * GET /api/admin/export?format=json|csv&phase=training|pilot|main
+ * GET /api/admin/export?format=json|csv&phase=<group>
  * Analysis-ready export (admin-only, so pragyanIncomp is included). An optional
- * `phase` limits the export to that phase's requirements; omitted = all phases.
+ * `phase` limits the export to that group's requirements; omitted = all groups.
  */
 router.get('/export', async (req, res, next) => {
   try {
     const format = (req.query.format || 'json').toLowerCase();
-    const phase = PHASES.includes(req.query.phase) ? req.query.phase : null;
+    const phase = normalizePhase(req.query.phase);
     const reqFilter = phase ? { phase } : {};
 
     const [requirements, annotations, adjudications, users] = await Promise.all([
@@ -340,17 +390,51 @@ router.get('/export', async (req, res, next) => {
     // requirements by phase is enough to scope annotations + gold to that phase.
     const rows = buildExportRows(requirements, annotations, adjudications, users);
     const scope = phase || 'all';
+    // Group names are free-form, so keep the filename to safe characters.
+    const slug = scope.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'export';
 
     if (format === 'csv') {
       const csv = rowsToCsv(rows);
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="rimay_export_${scope}.csv"`);
+      res.setHeader('Content-Disposition', `attachment; filename="rimay_export_${slug}.csv"`);
       return res.send(csv);
     }
 
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="rimay_export_${scope}.json"`);
+    res.setHeader('Content-Disposition', `attachment; filename="rimay_export_${slug}.json"`);
     res.json({ exportedAt: new Date().toISOString(), phase: scope, count: rows.length, rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/admin/agreement?phase=<group>&status=all|submitted
+ * Inter-annotator agreement computed in-app over the same rows the export
+ * produces, so it matches the offline Python report exactly. `phase` scopes it
+ * to one group (omitted = every group); `status=submitted` ignores drafts.
+ */
+router.get('/agreement', async (req, res, next) => {
+  try {
+    const phase = normalizePhase(req.query.phase);
+    const status = req.query.status === 'submitted' ? 'submitted' : 'all';
+    const reqFilter = phase ? { phase } : {};
+
+    const [requirements, annotations, adjudications, users] = await Promise.all([
+      Requirement.find(reqFilter).sort({ order: 1, reqId: 1 }),
+      Annotation.find(),
+      Adjudication.find(),
+      User.find(),
+    ]);
+
+    const rows = buildExportRows(requirements, annotations, adjudications, users);
+    const report = buildAgreementReport(rows, {
+      phase,
+      status,
+      requirementIdByReqId: new Map(requirements.map((r) => [r.reqId, r._id.toString()])),
+    });
+
+    res.json(report);
   } catch (err) {
     next(err);
   }

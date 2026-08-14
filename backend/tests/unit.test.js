@@ -12,6 +12,7 @@ const {
 const { serializeRequirementForAnnotator } = require('../src/utils/serializers');
 const { buildExportRows, rowsToCsv } = require('../src/utils/exporter');
 const { sanitizeAnnotationBody } = require('../src/routes/annotations');
+const { normalizePhase, phaseCounts } = require('../src/utils/phases');
 
 test('computeOverallIncomplete: missing mandatory slot => incomplete', () => {
   assert.equal(
@@ -146,6 +147,36 @@ test('buildExportRows: one row per (requirement, annotator) with flattened slots
   const csv = rowsToCsv(rows);
   assert.ok(csv.split('\n')[0].includes('reqId'));
   assert.ok(csv.split('\n')[0].includes('pragyanIncomp'));
+});
+
+test('normalizePhase: accepts any name, trimmed and whitespace-collapsed', () => {
+  assert.equal(normalizePhase('pilot'), 'pilot');
+  assert.equal(normalizePhase('  Batch   2 '), 'Batch 2');
+  assert.equal(normalizePhase('Reliability Study'), 'Reliability Study');
+});
+
+test('normalizePhase: rejects what cannot be a group name', () => {
+  assert.equal(normalizePhase('   '), null);
+  assert.equal(normalizePhase(''), null);
+  assert.equal(normalizePhase(null), null);
+  assert.equal(normalizePhase(42), null);
+  assert.equal(normalizePhase('x'.repeat(41)), null);
+  assert.equal(normalizePhase('x'.repeat(40)), 'x'.repeat(40));
+});
+
+test('phaseCounts: distinct groups ordered by size then name', () => {
+  const counts = phaseCounts([
+    { phase: 'pilot' },
+    { phase: 'main' },
+    { phase: 'pilot' },
+    { phase: 'batch 2' },
+    { phase: '  pilot ' }, // same group, sloppily typed
+  ]);
+  assert.deepEqual(counts, [
+    { phase: 'pilot', count: 3 },
+    { phase: 'batch 2', count: 1 },
+    { phase: 'main', count: 1 },
+  ]);
 });
 
 test('buildExportRows: requirement with no annotations still emits a row', () => {

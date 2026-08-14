@@ -12,10 +12,9 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { ApiService } from '../../core/api.service';
 import { Phase, Requirement } from '../../core/models';
-
-const PHASES: Phase[] = ['training', 'pilot', 'main'];
 
 @Component({
   selector: 'app-requirement-editor',
@@ -33,6 +32,7 @@ const PHASES: Phase[] = ['training', 'pilot', 'main'];
     MatProgressBarModule,
     MatSnackBarModule,
     MatTooltipModule,
+    MatAutocompleteModule,
   ],
   template: `
     <div class="page" style="max-width: 820px;">
@@ -54,11 +54,13 @@ const PHASES: Phase[] = ['training', 'pilot', 'main'];
               <mat-hint>Unique identifier</mat-hint>
             </mat-form-field>
 
-            <mat-form-field appearance="outline" style="width:200px;">
-              <mat-label>Phase</mat-label>
-              <mat-select [(ngModel)]="phase">
-                @for (p of phases; track p) { <mat-option [value]="p">{{ p }}</mat-option> }
-              </mat-select>
+            <mat-form-field appearance="outline" style="width:220px;">
+              <mat-label>Group</mat-label>
+              <input matInput [(ngModel)]="phase" [matAutocomplete]="groups" placeholder="e.g. pilot" />
+              <mat-autocomplete #groups="matAutocomplete">
+                @for (p of phases(); track p) { <mat-option [value]="p">{{ p }}</mat-option> }
+              </mat-autocomplete>
+              <mat-hint>Any name; a new one creates that group</mat-hint>
             </mat-form-field>
           </div>
 
@@ -113,7 +115,8 @@ export class RequirementEditorComponent implements OnInit {
   private router = inject(Router);
   private snack = inject(MatSnackBar);
 
-  phases = PHASES;
+  // Existing group names, offered as suggestions — any name is allowed.
+  phases = signal<Phase[]>([]);
   loading = signal(false);
   saving = signal(false);
   error = signal<string | null>(null);
@@ -128,6 +131,14 @@ export class RequirementEditorComponent implements OnInit {
   pragyanIncomp = false;
 
   ngOnInit(): void {
+    this.api.listPhases().subscribe({
+      next: (res) => {
+        const inUse = res.phases.map((p) => p.phase);
+        this.phases.set(inUse.length ? inUse : res.suggested);
+      },
+      error: () => {},
+    });
+
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.editId.set(id);
@@ -167,7 +178,7 @@ export class RequirementEditorComponent implements OnInit {
       reqId: this.reqId.trim(),
       nlDescription: this.nlDescription,
       nlText: this.nlText,
-      phase: this.phase,
+      phase: this.phase.trim().replace(/\s+/g, ' ') || 'main',
       pragyanIncomp: this.pragyanIncomp ? 1 : 0,
     };
     this.saving.set(true);

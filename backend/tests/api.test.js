@@ -278,6 +278,161 @@ test('admin can edit a requirement and delete it (cascading annotations)', async
   assert.equal(gone.status, 404);
 });
 
+// --- custom groups ----------------------------------------------------------
+
+test('a requirement can be moved into a brand-new custom group', async () => {
+  const token = await login('admin', 'admin123');
+  const reqDoc = await Requirement.findOne({ reqId: '500-Test' });
+
+  const res = await request
+    .put(`/api/admin/requirements/${reqDoc._id}/phase`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ phase: '  Reliability  round 2 ' });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  // Trimmed, inner whitespace collapsed, otherwise stored as typed.
+  assert.equal(res.body.requirement.phase, 'Reliability round 2');
+});
+
+test('group names must be non-empty and reasonably short', async () => {
+  const token = await login('admin', 'admin123');
+  const reqDoc = await Requirement.findOne({ reqId: '500-Test' });
+
+  const blank = await request
+    .put(`/api/admin/requirements/${reqDoc._id}/phase`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ phase: '   ' });
+  assert.equal(blank.status, 400);
+
+  const long = await request
+    .put(`/api/admin/requirements/${reqDoc._id}/phase`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ phase: 'x'.repeat(41) });
+  assert.equal(long.status, 400);
+});
+
+test('GET /phases lists the groups in use with their counts', async () => {
+  const token = await login('admin', 'admin123');
+  const res = await request.get('/api/admin/phases').set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 200);
+  const names = res.body.phases.map((p) => p.phase);
+  assert.ok(names.includes('pilot'));
+  assert.ok(names.includes('Reliability round 2'));
+  assert.equal(res.body.phases.find((p) => p.phase === 'Reliability round 2').count, 1);
+  assert.ok(Array.isArray(res.body.suggested));
+});
+
+test('progress reports whatever groups exist', async () => {
+  const token = await login('admin', 'admin123');
+  const res = await request.get('/api/admin/progress').set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 200);
+  assert.ok(res.body.phases.includes('Reliability round 2'));
+  assert.equal(res.body.totalsByPhase['Reliability round 2'], 1);
+  // Every annotator row has a bucket for every group.
+  res.body.perAnnotator.forEach((row) => {
+    assert.ok('Reliability round 2' in row.counts);
+  });
+});
+
+test('export can be scoped to a custom group and the filename stays safe', async () => {
+  const token = await login('admin', 'admin123');
+  const res = await request
+    .get('/api/admin/export?format=csv&phase=Reliability%20round%202')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers['content-disposition'], /rimay_export_reliability-round-2\.csv/);
+  assert.ok(res.text.includes('500-Test'));
+  assert.ok(!res.text.includes('72-Signal'));
+});
+
+test('renaming a group moves every requirement in it, and merges on collision', async () => {
+  const token = await login('admin', 'admin123');
+
+  const renamed = await request
+    .put('/api/admin/phases/rename')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ from: 'Reliability round 2', to: 'reliability' });
+  assert.equal(renamed.status, 200, JSON.stringify(renamed.body));
+  assert.equal(renamed.body.modified, 1);
+  assert.equal(renamed.body.merged, false);
+
+  // Renaming onto an existing group merges the two.
+  const merged = await request
+    .put('/api/admin/phases/rename')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ from: 'reliability', to: 'pilot' });
+  assert.equal(merged.body.merged, true);
+  assert.equal(merged.body.modified, 1);
+
+  const after = await request.get('/api/admin/phases').set('Authorization', `Bearer ${token}`);
+  assert.ok(!after.body.phases.some((p) => p.phase === 'reliability'));
+
+  const bad = await request
+    .put('/api/admin/phases/rename')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ from: 'pilot', to: '' });
+  assert.equal(bad.status, 400);
+});
+
+// --- agreement --------------------------------------------------------------
+
+test('agreement endpoint is admin-only', async () => {
+  const token = await login('ann1', 'pass123');
+  const res = await request.get('/api/admin/agreement').set('Authorization', `Bearer ${token}`);
+  assert.equal(res.status, 403);
+});
+
+test('agreement reports Kappa once two annotators have rated the same requirement', async () => {
+  const adminToken = await login('admin', 'admin123');
+  const annToken = await login('ann1', 'pass123');
+  const reqDoc = await Requirement.findOne({ reqId: '72-Signal' });
+
+  // ann1 already annotated 72-Signal earlier in this file; add the admin's.
+  const mine = await request
+    .post('/api/annotations')
+    .set('Authorization', `Bearer ${adminToken}`)
+    .send({
+      requirementId: reqDoc._id.toString(),
+      slots: { scope: 'present', condition: 'missing', actor: 'implied', modalVerb: 'implied', action: 'present' },
+    });
+  assert.equal(mine.status, 201);
+
+  const res = await request.get('/api/admin/agreement').set('Authorization', `Bearer ${adminToken}`);
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(res.body.empty, false);
+  assert.equal(res.body.meta.annotators.length, 2);
+  assert.equal(res.body.slots.length, 5);
+
+  // ann1 said scope=missing, admin said scope=present -> a reported split.
+  const scopeSplit = res.body.disagreements.find(
+    (d) => d.reqId === '72-Signal' && d.field === 'scope'
+  );
+  assert.ok(scopeSplit, 'the scope disagreement is listed');
+  assert.equal(scopeSplit.requirementId, reqDoc._id.toString());
+  assert.equal(scopeSplit.votes.length, 2);
+
+  // Pairwise Cohen for the single pair of annotators.
+  const scope = res.body.slots.find((s) => s.field === 'scope');
+  assert.equal(scope.cohen.pairs.length, 1);
+});
+
+test('agreement can be scoped to one group and to submitted-only', async () => {
+  const token = await login('admin', 'admin123');
+
+  const scoped = await request
+    .get('/api/admin/agreement?phase=pilot')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(scoped.status, 200);
+  assert.equal(scoped.body.meta.phase, 'pilot');
+
+  // ann1's annotation was submitted, the admin's is still a draft.
+  const submitted = await request
+    .get('/api/admin/agreement?status=submitted')
+    .set('Authorization', `Bearer ${token}`);
+  assert.equal(submitted.body.meta.status, 'submitted');
+  assert.equal(submitted.body.empty, true);
+  assert.match(submitted.body.reason, /two annotators/);
+});
+
 test('clear-data endpoint blocked for annotators', async () => {
   const token = await login('ann1', 'pass123');
   const res = await request.delete('/api/admin/data').set('Authorization', `Bearer ${token}`);

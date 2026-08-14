@@ -36,8 +36,9 @@ four separate laptops write into the one database.
 
 ## Roles
 
-- **admin** — sets up the dataset, assigns phases, sees everyone's work, runs
-  adjudication, exports the data. The admin is also an annotator.
+- **admin** — sets up the dataset, organises it into groups, sees everyone's
+  work, runs adjudication, reads the agreement report, exports the data. The
+  admin is also an annotator.
 - **annotator** (Rafo, Arthur, Mko) — sees only their **own** assigned
   requirements and their **own** annotations. Never sees other annotators' work
   or the hidden Pragyan label.
@@ -62,10 +63,12 @@ You (the admin) do this a single time. The annotators do **not** repeat it.
    npm run import -- "../../Datasets/Pragyan/100-FeatureRequests-Corpus-Reconciled.csv" training
    ```
    (Or import later from the admin UI: **Admin → Dataset → Import corpus CSV**.)
-5. **Assign phases** in the admin UI (Admin → Dataset). Mark the requirements you
-   want done first as `training`, then `pilot`, then `main`. Phases just control
-   which requirements appear in which tab — a way to roll out the corpus in
-   stages.
+5. **Organise the corpus into groups** in the admin UI (Admin → Dataset). A group
+   is any name you choose — `training`, `pilot`, `main`, `batch 2`,
+   `reliability`… Type a new name and that group exists; rename a group to move
+   everything in it at once (renaming onto an existing name merges them). Groups
+   just control which requirements appear in which tab — a way to roll out the
+   corpus in stages, or to keep separate sub-studies apart.
 
 > Because all of this writes to the shared Atlas DB, the moment you've done it,
 > Rafo / Arthur / Mko will see the same requirements when they log in. They never
@@ -155,8 +158,9 @@ reloads the exact saved state from Atlas. The "Complete / Incomplete" verdict is
 computed automatically (a requirement is incomplete if Actor, Modal verb, or
 Action is Missing).
 
-Phases are done in order: **training → pilot → main** (each is a tab on the
-dashboard).
+Groups are worked through in whatever order the admin sets up — typically
+**training → pilot → main** — and each group the annotator has work in is a tab
+on their dashboard.
 
 ---
 
@@ -170,7 +174,26 @@ feed the similarity analysis separately.
 
 ---
 
-## Part 6 — The endgame: Export → Python
+## Part 6 — Agreement (admin, in the app)
+
+**Admin → Agreement** answers *did the annotators agree?* without leaving the
+tool. Pick a group (or all groups), optionally ignore drafts, and read:
+
+- **Fleiss' Kappa** per slot — chance-corrected agreement across all annotators.
+- **Cohen's Kappa** per pair of annotators — *who* disagrees with whom.
+- **Raw agreement** (unanimous, ≥(n−1)-of-n) beside each Kappa, since Kappa reads
+  low when one category dominates.
+- **Agreement with the gold**, once adjudication has happened.
+- A **disagreement worksheet** — every split, with a link straight into
+  adjudication. This is the agenda for a reconciliation session.
+- **Report (.md)** to save the whole thing for the write-up.
+
+It runs on the same rows the export produces, so it matches the offline Python
+report exactly.
+
+---
+
+## Part 7 — The endgame: Export → Python
 
 When annotation is done, the admin clicks **Admin → Export** (JSON or CSV).
 
@@ -179,15 +202,14 @@ Export pulls the **entire shared database into one flat file**: **one row per
 gold standard and the Pragyan label joined in. So one requirement annotated by
 four people = four rows.
 
-That file is exactly what the separate **Python pipeline** consumes:
-
-- **Fleiss' Kappa** — *did the annotators agree?* Needs everyone's slot choices
-  side by side per requirement. ✔ in the export.
-- **Similarity metrics** — comparing each person's free-text Rimay conversion.
-  ✔ one per annotator in the export.
+That file feeds the separate **Python pipeline** for the analysis that is not in
+the app — **similarity metrics** comparing each person's free-text Rimay
+conversion (✔ one per annotator in the export) — and lets you reproduce the
+agreement report offline.
 
 ```
-annotate independently  →  one shared Atlas DB  →  admin exports one file  →  Python: Kappa + similarity
+annotate independently  →  one shared Atlas DB  →  Agreement tab (Kappa)
+                                                →  export one file  →  Python: similarity
 ```
 
 ---

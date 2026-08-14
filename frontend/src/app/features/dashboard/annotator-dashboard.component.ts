@@ -10,8 +10,6 @@ import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { Phase, Requirement } from '../../core/models';
 
-const PHASES: Phase[] = ['training', 'pilot', 'main'];
-
 @Component({
   selector: 'app-annotator-dashboard',
   standalone: true,
@@ -32,16 +30,20 @@ const PHASES: Phase[] = ['training', 'pilot', 'main'];
 
       @if (loading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
 
+      @if (phases().length === 0 && !loading()) {
+        <p style="color:#888;">Nothing assigned yet.</p>
+      }
+
       <mat-tab-group>
-        @for (phase of phases; track phase) {
+        @for (phase of phases(); track phase) {
           <mat-tab [label]="phaseLabel(phase)">
             <div style="padding-top:16px;">
-              @if (byPhase()[phase].length === 0) {
-                <p style="color:#888;">No requirements in this phase.</p>
+              @if (requirementsIn(phase).length === 0) {
+                <p style="color:#888;">No requirements in this group.</p>
               } @else {
                 <div style="display:flex; align-items:center; gap:16px; margin-bottom:12px;">
                   <span>
-                    <strong>{{ submittedCount(phase) }}</strong> / {{ byPhase()[phase].length }} submitted
+                    <strong>{{ submittedCount(phase) }}</strong> / {{ requirementsIn(phase).length }} submitted
                   </span>
                   <button
                     mat-raised-button
@@ -54,7 +56,7 @@ const PHASES: Phase[] = ['training', 'pilot', 'main'];
                   </button>
                 </div>
 
-                @for (r of byPhase()[phase]; track r._id) {
+                @for (r of requirementsIn(phase); track r._id) {
                   <mat-card style="margin-bottom:8px;">
                     <mat-card-content
                       style="display:flex; align-items:center; gap:12px; padding:12px 16px;"
@@ -88,15 +90,25 @@ export class AnnotatorDashboardComponent implements OnInit {
   auth = inject(AuthService);
   private router = inject(Router);
 
-  phases = PHASES;
   loading = signal(false);
   private requirements = signal<Requirement[]>([]);
 
-  byPhase = computed(() => {
-    const groups: Record<Phase, Requirement[]> = { training: [], pilot: [], main: [] };
-    for (const r of this.requirements()) groups[r.phase].push(r);
+  // Groups are free-form names, so the tabs are whatever groups the assigned
+  // requirements are actually in — in the order they arrive from the API.
+  private byPhase = computed(() => {
+    const groups = new Map<Phase, Requirement[]>();
+    for (const r of this.requirements()) {
+      if (!groups.has(r.phase)) groups.set(r.phase, []);
+      groups.get(r.phase)!.push(r);
+    }
     return groups;
   });
+
+  phases = computed(() => [...this.byPhase().keys()]);
+
+  requirementsIn(phase: Phase): Requirement[] {
+    return this.byPhase().get(phase) ?? [];
+  }
 
   ngOnInit(): void {
     this.loading.set(true);
@@ -110,16 +122,16 @@ export class AnnotatorDashboardComponent implements OnInit {
   }
 
   phaseLabel(p: Phase): string {
-    const total = this.byPhase()[p].length;
-    return `${p[0].toUpperCase()}${p.slice(1)} (${total})`;
+    const label = p ? `${p[0].toUpperCase()}${p.slice(1)}` : 'Ungrouped';
+    return `${label} (${this.requirementsIn(p).length})`;
   }
 
   submittedCount(p: Phase): number {
-    return this.byPhase()[p].filter((r) => r.annotationStatus === 'submitted').length;
+    return this.requirementsIn(p).filter((r) => r.annotationStatus === 'submitted').length;
   }
 
   nextToDo(p: Phase): Requirement | undefined {
-    return this.byPhase()[p].find((r) => r.annotationStatus !== 'submitted');
+    return this.requirementsIn(p).find((r) => r.annotationStatus !== 'submitted');
   }
 
   statusLabel(s?: string): string {

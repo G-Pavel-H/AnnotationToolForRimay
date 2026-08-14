@@ -1,6 +1,12 @@
 export type Role = 'admin' | 'annotator';
 export type SlotValue = 'present' | 'implied' | 'missing';
-export type Phase = 'training' | 'pilot' | 'main';
+
+/**
+ * A group (historically "phase") is a free-form label the admin chooses —
+ * 'training'/'pilot'/'main' are only the suggested starting names. The set of
+ * groups is always read from the data via `ApiService.listPhases()`.
+ */
+export type Phase = string;
 export type ConditionType = 'precondition' | 'trigger' | 'temporal' | 'none';
 export type AnnotationStatus = 'not_started' | 'draft' | 'submitted';
 
@@ -65,6 +71,7 @@ export interface Adjudication {
 }
 
 export interface ProgressResponse {
+  phases: Phase[];
   totalsByPhase: Record<Phase, number>;
   perAnnotator: Array<{
     annotatorId: string;
@@ -73,6 +80,75 @@ export interface ProgressResponse {
     role: Role;
     counts: Record<Phase, { draft: number; submitted: number }>;
   }>;
+}
+
+export interface PhaseCount {
+  phase: Phase;
+  count: number;
+}
+
+export interface PhasesResponse {
+  phases: PhaseCount[];
+  suggested: Phase[];
+}
+
+// --- agreement (computed in-app; see backend/src/utils/agreement.js) ---------
+
+/** Cohen's Kappa for one pair of annotators on one field. */
+export interface CohenPair {
+  a: string;
+  b: string;
+  n: number;
+  kappa: number | null;
+  band: string;
+  observed: number | null;
+}
+
+/** Everything reported for one categorical field. */
+export interface FieldAgreement {
+  field: string;
+  note: string;
+  categories: string[];
+  kappa: number | null; // Fleiss', across all annotators
+  band: string;
+  unanimous: number | null;
+  majority: number | null;
+  nSubjects: number;
+  distribution: Record<string, number>;
+  cohen: { pairs: CohenPair[]; mean: number | null };
+  belowSubstantial: boolean;
+}
+
+export interface GoldAgreement {
+  slots: string[];
+  raters: string[];
+  table: Record<string, Record<string, { matches: number; comparable: number; rate: number | null }>>;
+}
+
+export interface Disagreement {
+  reqId: string;
+  requirementId: string | null;
+  field: string;
+  distribution: Array<{ value: string; count: number }>;
+  votes: Array<{ rater: string; value: string }>;
+}
+
+export interface AgreementReport {
+  meta: {
+    phase: Phase | null;
+    status: 'all' | 'submitted';
+    nRequirements: number;
+    nRatings: number;
+    annotators: string[];
+    generatedAt: string;
+  };
+  slots: FieldAgreement[];
+  extras: FieldAgreement[];
+  gold: GoldAgreement | null;
+  disagreements: Disagreement[];
+  warnings: string[];
+  empty: boolean;
+  reason?: string;
 }
 
 export const SLOT_FIELDS: Array<{ key: keyof Slots; label: string; mandatory: boolean }> = [

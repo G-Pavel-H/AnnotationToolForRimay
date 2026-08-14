@@ -7,37 +7,38 @@
     <mat-tab label="Progress">
       <div style="padding-top:16px;">
         @if (progress(); as p) {
-          <p style="color:#666;">
-            Totals — training: {{ totalFor('training') }}, pilot: {{ totalFor('pilot') }}, main: {{ totalFor('main') }}
-          </p>
-          <table mat-table [dataSource]="p.perAnnotator" class="mat-elevation-z1">
-            <ng-container matColumnDef="annotator">
-              <th mat-header-cell *matHeaderCellDef>Annotator</th>
-              <td mat-cell *matCellDef="let row">
-                {{ row.displayName }}
-                <span style="color:#999; font-size:12px;">({{ row.role }})</span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="training">
-              <th mat-header-cell *matHeaderCellDef>Training</th>
-              <td mat-cell *matCellDef="let row">{{ cell(row, 'training') }}</td>
-            </ng-container>
-            <ng-container matColumnDef="pilot">
-              <th mat-header-cell *matHeaderCellDef>Pilot</th>
-              <td mat-cell *matCellDef="let row">{{ cell(row, 'pilot') }}</td>
-            </ng-container>
-            <ng-container matColumnDef="main">
-              <th mat-header-cell *matHeaderCellDef>Main</th>
-              <td mat-cell *matCellDef="let row">{{ cell(row, 'main') }}</td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="progressColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: progressColumns"></tr>
-          </table>
+          @if (p.phases.length) {
+            <p style="color:#666;">
+              Totals —
+              @for (ph of p.phases; track ph) {
+                <span>{{ ph }}: {{ totalFor(ph) }}@if (!$last) {, }</span>
+              }
+            </p>
+            <table mat-table [dataSource]="p.perAnnotator" class="mat-elevation-z1">
+              <ng-container matColumnDef="annotator">
+                <th mat-header-cell *matHeaderCellDef>Annotator</th>
+                <td mat-cell *matCellDef="let row">
+                  {{ row.displayName }}
+                  <span style="color:#999; font-size:12px;">({{ row.role }})</span>
+                </td>
+              </ng-container>
+              @for (ph of p.phases; track ph) {
+                <ng-container [matColumnDef]="ph">
+                  <th mat-header-cell *matHeaderCellDef>{{ ph }}</th>
+                  <td mat-cell *matCellDef="let row">{{ cell(row, ph) }}</td>
+                </ng-container>
+              }
+              <tr mat-header-row *matHeaderRowDef="progressColumns()"></tr>
+              <tr mat-row *matRowDef="let row; columns: progressColumns()"></tr>
+            </table>
+          } @else {
+            <p style="color:#888;">No requirements yet — import a corpus on the Dataset tab.</p>
+          }
         }
       </div>
     </mat-tab>
 
-    <!-- DATASET / IMPORT / PHASES -->
+    <!-- DATASET / IMPORT / GROUPS -->
     <mat-tab label="Dataset">
       <div style="padding-top:16px;">
         <mat-card style="margin-bottom:16px;">
@@ -55,6 +56,21 @@
               <p>Drag &amp; drop the Pragyan corpus CSV here, or click to choose a file.</p>
               <input #fileInput type="file" accept=".csv" hidden (change)="onFilePick($event)" />
             </div>
+            <div style="display:flex; align-items:center; gap:12px; margin-top:16px; flex-wrap:wrap;">
+              <mat-form-field appearance="outline" style="width:260px;" subscriptSizing="dynamic">
+                <mat-label>Put new requirements in</mat-label>
+                <input matInput [(ngModel)]="importPhase" [matAutocomplete]="importGroups"
+                       placeholder="e.g. pilot, batch 2, reliability" />
+                <mat-autocomplete #importGroups="matAutocomplete">
+                  @for (ph of phases(); track ph) { <mat-option [value]="ph">{{ ph }}</mat-option> }
+                </mat-autocomplete>
+              </mat-form-field>
+              <span style="font-size:12px; color:#888;">
+                Any name works — typing a new one creates that group. Requirements already in the
+                dataset keep the group they are in.
+              </span>
+            </div>
+
             <p style="font-size:12px; color:#888; margin-top:12px;">
               <mat-icon style="font-size:14px; height:14px; width:14px; vertical-align:text-bottom;">info</mat-icon>
               Import is an <strong>upsert keyed by Req ID</strong>: importing the same CSV again updates the
@@ -65,12 +81,45 @@
         </mat-card>
 
         <mat-card style="margin-bottom:16px;">
-          <mat-card-header><mat-card-title>Bulk phase assignment</mat-card-title></mat-card-header>
-          <mat-card-content style="display:flex; align-items:center; gap:12px; padding-top:16px;">
-            <mat-select [(ngModel)]="bulkPhase" style="width:200px;">
-              @for (ph of phases; track ph) { <mat-option [value]="ph">{{ ph }}</mat-option> }
-            </mat-select>
-            <button mat-stroked-button (click)="bulkAssign()">Apply to all requirements</button>
+          <mat-card-header>
+            <mat-card-title>Groups</mat-card-title>
+            <mat-card-subtitle>
+              A group is any name you choose — training, pilot, main, batch 2, reliability… The list is
+              simply the names in use.
+            </mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content style="padding-top:16px;">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+              <mat-form-field appearance="outline" style="width:240px;" subscriptSizing="dynamic">
+                <mat-label>Move every requirement into</mat-label>
+                <input matInput [(ngModel)]="bulkPhase" [matAutocomplete]="bulkGroups"
+                       placeholder="type a new or existing name" />
+                <mat-autocomplete #bulkGroups="matAutocomplete">
+                  @for (ph of phases(); track ph) { <mat-option [value]="ph">{{ ph }}</mat-option> }
+                </mat-autocomplete>
+              </mat-form-field>
+              <button mat-stroked-button (click)="bulkAssign()">Apply to all requirements</button>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:12px; margin-top:16px; flex-wrap:wrap;">
+              <mat-form-field appearance="outline" style="width:200px;" subscriptSizing="dynamic">
+                <mat-label>Rename group</mat-label>
+                <mat-select [(ngModel)]="renameFrom">
+                  @for (ph of phases(); track ph) {
+                    <mat-option [value]="ph">{{ ph }} ({{ phaseCount(ph) }})</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-icon style="color:#888;">arrow_forward</mat-icon>
+              <mat-form-field appearance="outline" style="width:200px;" subscriptSizing="dynamic">
+                <mat-label>New name</mat-label>
+                <input matInput [(ngModel)]="renameTo" placeholder="e.g. main study" />
+              </mat-form-field>
+              <button mat-stroked-button (click)="renameGroup()">Rename</button>
+              <span style="font-size:12px; color:#888;">
+                Renaming onto an existing group merges the two.
+              </span>
+            </div>
           </mat-card-content>
         </mat-card>
 
@@ -78,7 +127,7 @@
           <mat-card-header style="align-items:center;">
             <div>
               <mat-card-title>Requirements ({{ requirements().length }})</mat-card-title>
-              <mat-card-subtitle>Grouped by phase — expand a phase to review, edit and adjudicate it.</mat-card-subtitle>
+              <mat-card-subtitle>Grouped — expand a group to review, edit and adjudicate it.</mat-card-subtitle>
             </div>
             <span class="spacer"></span>
             <button mat-raised-button color="primary" (click)="addRequirement()">
@@ -87,15 +136,15 @@
           </mat-card-header>
           <mat-card-content>
             <mat-accordion multi>
-              @for (ph of phases; track ph) {
+              @for (ph of phases(); track ph) {
                 <mat-expansion-panel [expanded]="phaseCount(ph) > 0">
                   <mat-expansion-panel-header>
-                    <mat-panel-title style="text-transform:capitalize; font-weight:500;">{{ ph }}</mat-panel-title>
+                    <mat-panel-title style="font-weight:500;">{{ ph }}</mat-panel-title>
                     <mat-panel-description>{{ phaseCount(ph) }} requirement{{ phaseCount(ph) === 1 ? '' : 's' }}</mat-panel-description>
                   </mat-expansion-panel-header>
 
                   @if (phaseCount(ph) === 0) {
-                    <p style="color:#888; margin:8px 0;">No requirements in this phase.</p>
+                    <p style="color:#888; margin:8px 0;">No requirements in this group.</p>
                   } @else {
                     <table style="width:100%; border-collapse:collapse;">
                       <thead>
@@ -103,12 +152,12 @@
                           <th style="padding:6px 8px;">Req ID</th>
                           <th style="padding:6px 8px;">Description</th>
                           <th style="padding:6px 8px;">Pragyan</th>
-                          <th style="padding:6px 8px;">Phase</th>
+                          <th style="padding:6px 8px;">Group</th>
                           <th style="padding:6px 8px;"></th>
                         </tr>
                       </thead>
                       <tbody>
-                        @for (r of byPhase()[ph]; track r._id) {
+                        @for (r of requirementsIn(ph); track r._id) {
                           <tr class="req-row" style="border-top:1px solid var(--mat-sys-outline-variant);">
                             <td style="padding:6px 8px; font-weight:500;">{{ r.reqId }}</td>
                             <td style="padding:6px 8px; max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
@@ -122,8 +171,9 @@
                               }
                             </td>
                             <td style="padding:6px 8px;">
-                              <mat-select [value]="r.phase" (selectionChange)="setPhase(r, $event.value)" style="width:130px;">
-                                @for (p of phases; track p) { <mat-option [value]="p">{{ p }}</mat-option> }
+                              <mat-select [value]="r.phase" (selectionChange)="setPhase(r, $event.value)" style="width:150px;">
+                                @for (p of phases(); track p) { <mat-option [value]="p">{{ p }}</mat-option> }
+                                <mat-option [value]="NEW_GROUP">＋ New group…</mat-option>
                               </mat-select>
                             </td>
                             <td style="padding:6px 8px; white-space:nowrap;">
@@ -169,6 +219,13 @@
       </div>
     </mat-tab>
 
+    <!-- AGREEMENT -->
+    <mat-tab label="Agreement">
+      <div style="padding-top:16px;">
+        <app-agreement></app-agreement>
+      </div>
+    </mat-tab>
+
     <!-- EXPORT -->
     <mat-tab label="Export">
       <div style="padding-top:16px;">
@@ -177,16 +234,16 @@
           <mat-card-content>
             <p style="color:#666;">
               One record per (requirement, annotator) with flattened slots, the gold standard, and the
-              Pragyan label joined in. Feeds the Python pipeline (Kappa + similarity).
+              Pragyan label joined in. The same rows the Agreement tab scores, for analysis outside the app.
             </p>
             <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
               <mat-form-field appearance="outline" style="width:220px;" subscriptSizing="dynamic">
                 <mat-label>Scope</mat-label>
                 <mat-select [(ngModel)]="exportScope">
-                  <mat-option value="all">All data (every phase)</mat-option>
-                  <mat-option value="training">Training only</mat-option>
-                  <mat-option value="pilot">Pilot only</mat-option>
-                  <mat-option value="main">Main only</mat-option>
+                  <mat-option value="all">All data (every group)</mat-option>
+                  @for (ph of phases(); track ph) {
+                    <mat-option [value]="ph">{{ ph }} only</mat-option>
+                  }
                 </mat-select>
               </mat-form-field>
               <button mat-raised-button color="primary" (click)="export('json')">

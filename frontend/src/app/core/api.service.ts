@@ -3,8 +3,10 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   Adjudication,
+  AgreementReport,
   Annotation,
   Phase,
+  PhasesResponse,
   ProgressResponse,
   Requirement,
 } from './models';
@@ -42,13 +44,28 @@ export class ApiService {
   }
 
   // --- Admin ---
-  importRequirements(file: File): Observable<{ imported: number; created: number; updated: number }> {
+  /** Import a corpus CSV; new requirements land in `phase` (existing ones keep theirs). */
+  importRequirements(
+    file: File,
+    phase?: Phase
+  ): Observable<{ imported: number; created: number; updated: number; phase: Phase }> {
     const form = new FormData();
     form.append('file', file);
-    return this.http.post<{ imported: number; created: number; updated: number }>(
+    if (phase) form.append('phase', phase);
+    return this.http.post<{ imported: number; created: number; updated: number; phase: Phase }>(
       '/api/admin/requirements/import',
       form
     );
+  }
+
+  /** The groups currently in use, largest first, plus suggested starter names. */
+  listPhases(): Observable<PhasesResponse> {
+    return this.http.get<PhasesResponse>('/api/admin/phases');
+  }
+
+  /** Rename a group everywhere; renaming onto an existing name merges the two. */
+  renamePhase(from: Phase, to: Phase): Observable<{ modified: number; merged: boolean }> {
+    return this.http.put<{ modified: number; merged: boolean }>('/api/admin/phases/rename', { from, to });
   }
 
   setPhase(id: string, phase: Phase): Observable<{ requirement: Requirement }> {
@@ -117,9 +134,16 @@ export class ApiService {
     }>('/api/admin/data');
   }
 
+  /** Inter-annotator agreement, computed server-side over the export rows. */
+  getAgreement(phase?: Phase | 'all', status: 'all' | 'submitted' = 'all'): Observable<AgreementReport> {
+    let params = new HttpParams().set('status', status);
+    if (phase && phase !== 'all') params = params.set('phase', phase);
+    return this.http.get<AgreementReport>('/api/admin/agreement', { params });
+  }
+
   exportUrl(format: 'json' | 'csv', phase?: Phase | 'all'): string {
     let url = `/api/admin/export?format=${format}`;
-    if (phase && phase !== 'all') url += `&phase=${phase}`;
+    if (phase && phase !== 'all') url += `&phase=${encodeURIComponent(phase)}`;
     return url;
   }
 

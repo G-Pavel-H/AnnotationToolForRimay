@@ -26,8 +26,10 @@ requirements ──────► annotations          (one per requirement × 
 - The **admin** later writes **one adjudication** (the gold standard) per
   requirement, after reviewing everyone's annotations side by side.
 
-All data feeds a separate **Python pipeline** (Fleiss' Kappa on the categorical
-slots, similarity metrics on the Rimay text) via the admin JSON/CSV export.
+Agreement on the categorical slots (Fleiss' and Cohen's Kappa) is computed
+**in-app** from this data — see `backend/src/utils/agreement.js` and the admin
+Agreement tab. The admin JSON/CSV export feeds the separate Python pipeline for
+the Rimay-text similarity metrics and any offline analysis.
 
 ---
 
@@ -61,7 +63,7 @@ The corpus, imported from the Pragyan CSV (admin import or `npm run import`).
 | `nlText`        | String   | Full source text (`TextUsedForAnnotation`)                   |
 | `nlDescription` | String   | Just the "Request Description" portion (for readability)     |
 | `pragyanIncomp` | Number   | `0` or `1` — **ADMIN ONLY, never sent to annotators**        |
-| `phase`         | String   | `"training"` \| `"pilot"` \| `"main"`                        |
+| `phase`         | String   | Free-form **group** name, e.g. `"pilot"`, `"batch 2"` (default `"main"`) |
 | `order`         | Number   | Display/sort order                                           |
 | `createdAt`     | Date     | Auto                                                         |
 
@@ -70,7 +72,16 @@ The corpus, imported from the Pragyan CSV (admin import or `npm run import`).
 > annotation **blind** so it isn't biased by Pragyan's prior label.
 
 **Import behaviour:** requirements are **upserted by `reqId`**. Re-importing the
-same CSV updates the existing rows in place — it never creates duplicates.
+same CSV updates the existing rows in place — it never creates duplicates. New
+rows land in the group chosen at import time; existing rows keep their group.
+
+**Groups (`phase`) are not an enum.** Any name up to 40 characters works —
+`training`/`pilot`/`main` are only the names suggested for an empty dataset. The
+set of groups is simply the distinct values in use, so creating a group means
+typing its name, and `GET /api/admin/phases` reports the current list with
+counts. Names are trimmed and inner whitespace collapsed
+(`backend/src/utils/phases.js`), so `"  batch   2 "` and `"batch 2"` are the same
+group. Renaming a group onto an existing name merges the two.
 
 ---
 
