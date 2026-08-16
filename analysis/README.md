@@ -83,8 +83,10 @@ Sections:
 
 - **Inter-annotator similarity** — overall mean pairwise similarity, plus a
   per-annotator-pair chrF matrix (spots an annotator who consistently diverges).
-- **Similarity to the adjudicated reference** — each annotator's conversion vs
-  `canonicalRimay`, if that column is populated (skipped silently otherwise).
+- **Similarity to the adjudicated reference** — legacy: the app no longer records
+  a gold conversion text (`canonicalRimay` was removed), so this section is
+  skipped for any current export and only fires on older files that still carry
+  the column.
 - **Per-requirement worksheet** — requirements sorted worst-first by mean chrF, so
   the biggest wording divergences surface for discussion.
 

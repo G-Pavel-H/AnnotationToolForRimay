@@ -31,7 +31,6 @@ function buildExportRows(requirements, annotations, adjudications, users) {
     goldBase.gold_conditionType = adj ? adj.goldConditionType : null;
     goldBase.gold_overallIncomplete = adj ? adj.goldOverallIncomplete : null;
     goldBase.gold_hadDisagreement = adj ? adj.hadDisagreement : null;
-    goldBase.canonicalRimay = adj ? adj.canonicalRimay : null;
 
     const reqBase = {
       reqId: req.reqId,

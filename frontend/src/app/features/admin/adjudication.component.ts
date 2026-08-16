@@ -79,6 +79,11 @@ export class AdjudicationComponent implements OnInit {
   requirement = signal<Requirement | null>(null);
   annotations = signal<Annotation[]>([]);
   expanded = signal<Set<string>>(new Set());
+  // Reveals the raw nlText — request number, title and description, i.e. the
+  // exact text downstream consumers receive. Deliberately NOT reset by
+  // resetGoldForm(): once opened it stays open through Previous/Next, so a
+  // whole adjudication pass can be done with the source text visible.
+  showFullText = signal(false);
 
   // Ordered requirements in the SAME phase, for Previous/Next cycling.
   private phaseList = signal<Requirement[]>([]);
@@ -99,7 +104,6 @@ export class AdjudicationComponent implements OnInit {
     action: 'missing',
   };
   goldConditionType: ConditionType = 'none';
-  canonicalRimay = '';
   notes = '';
 
   get isGoldIncomplete(): boolean {
@@ -128,7 +132,6 @@ export class AdjudicationComponent implements OnInit {
       action: 'missing',
     };
     this.goldConditionType = 'none';
-    this.canonicalRimay = '';
     this.notes = '';
     this.expanded.set(new Set());
   }
@@ -147,7 +150,6 @@ export class AdjudicationComponent implements OnInit {
         if (res.adjudication) {
           this.goldSlots = { ...this.goldSlots, ...res.adjudication.goldSlots };
           this.goldConditionType = res.adjudication.goldConditionType || 'none';
-          this.canonicalRimay = res.adjudication.canonicalRimay || '';
           this.notes = res.adjudication.notes || '';
         } else {
           // Pre-select the majority value per slot when one exists.
@@ -245,7 +247,6 @@ export class AdjudicationComponent implements OnInit {
     const payload: Partial<Adjudication> = {
       goldSlots: this.goldSlots,
       goldConditionType: this.goldConditionType,
-      canonicalRimay: this.canonicalRimay || null,
       notes: this.notes,
     };
     this.api.saveAdjudication(req._id, payload).subscribe({

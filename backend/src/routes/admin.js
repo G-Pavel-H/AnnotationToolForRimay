@@ -341,7 +341,6 @@ router.post('/adjudications/:requirementId', async (req, res, next) => {
       goldSlots,
       goldConditionType,
       goldOverallIncomplete: computeOverallIncomplete(goldSlots),
-      canonicalRimay: typeof body.canonicalRimay === 'string' ? body.canonicalRimay : null,
       resolvedBy: req.user._id,
       hadDisagreement,
       notes: typeof body.notes === 'string' ? body.notes : '',

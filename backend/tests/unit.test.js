@@ -130,7 +130,6 @@ test('buildExportRows: one row per (requirement, annotator) with flattened slots
       goldConditionType: 'none',
       goldOverallIncomplete: false,
       hadDisagreement: false,
-      canonicalRimay: 'The App must show a preview.',
     },
   ];
   const users = [{ _id: 'u1', username: 'a1', displayName: 'Ann One' }];
@@ -143,6 +142,8 @@ test('buildExportRows: one row per (requirement, annotator) with flattened slots
   assert.equal(row.slot_actor, 'implied');
   assert.equal(row.gold_action, 'present');
   assert.equal(row.annotatorUsername, 'a1');
+  // The gold is categorical only — no gold conversion text is exported.
+  assert.ok(!('canonicalRimay' in row));
 
   const csv = rowsToCsv(rows);
   assert.ok(csv.split('\n')[0].includes('reqId'));

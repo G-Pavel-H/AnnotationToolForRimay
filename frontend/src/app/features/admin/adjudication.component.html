@@ -23,7 +23,19 @@
 
     <mat-card style="margin-bottom:16px;">
       <mat-card-content style="padding-top:16px;">
-        <p style="font-size:16px;">{{ req.nlDescription }}</p>
+        <p style="font-size:16px; margin:0;">{{ req.nlDescription }}</p>
+        <button mat-button style="margin-top:8px; padding-left:0;" (click)="showFullText.set(!showFullText())">
+          <mat-icon>{{ showFullText() ? 'expand_less' : 'expand_more' }}</mat-icon>
+          {{ showFullText() ? 'Hide full source text' : 'Show full source text' }}
+        </button>
+        @if (showFullText()) {
+          <pre class="code-block" style="white-space:pre-wrap; padding:12px; font-size:13px; margin:8px 0 0;">{{ req.nlText }}</pre>
+          <p style="font-size:12px; color:#888; margin:8px 0 0;">
+            The requirement's <code>nlText</code> — request number, title and description.
+            This is what the export ships and what any downstream conversion reads, so
+            what you see here is what a model receives.
+          </p>
+        }
       </mat-card-content>
     </mat-card>
 
@@ -173,17 +185,19 @@
       </mat-card>
 
       <mat-card style="margin-bottom:32px;">
-        <mat-card-header><mat-card-title>Gold standard</mat-card-title></mat-card-header>
+        <mat-card-header>
+          <mat-card-title>Gold standard</mat-card-title>
+          <mat-card-subtitle>
+            Slot labels only — the Rimay conversions stay individual and are compared
+            annotator-to-annotator, so there is no single "correct" wording to record.
+          </mat-card-subtitle>
+        </mat-card-header>
         <mat-card-content style="padding-top:16px;">
           <p style="color:#666;">
             Gold verdict (computed from actor/modal/action):
             <strong>{{ isGoldIncomplete ? 'Incomplete' : 'Complete' }}</strong>.
             Disagreement on any slot: <strong>{{ hadAnyDisagreement() ? 'yes' : 'no' }}</strong>.
           </p>
-          <mat-form-field class="full-width" appearance="outline">
-            <mat-label>Canonical Rimay (optional)</mat-label>
-            <textarea matInput rows="3" [(ngModel)]="canonicalRimay"></textarea>
-          </mat-form-field>
           <mat-form-field class="full-width" appearance="outline">
             <mat-label>Adjudication notes</mat-label>
             <textarea matInput rows="2" [(ngModel)]="notes"></textarea>

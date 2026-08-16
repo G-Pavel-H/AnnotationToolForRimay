@@ -145,8 +145,11 @@ it never creates a second copy and never touches another annotator's record
 ## `adjudications`
 
 The admin's gold standard for one requirement, written during adjudication.
-The free-text Rimay conversions are **not** reconciled to a single value — they
-stay individual for similarity analysis; only the categorical slots get a gold.
+The gold is **categorical only**. The free-text Rimay conversions are never
+reconciled to a single value — a requirement has as many valid conversions as it
+has annotators, so conversion quality is measured annotator-to-annotator and each
+annotation keeps its own `rimayText`. Adjudication resolves the slot labels and
+nothing else.
 
 | Field                   | Type     | Notes                                              |
 | ----------------------- | -------- | -------------------------------------------------- |
@@ -155,7 +158,6 @@ stay individual for similarity analysis; only the categorical slots get a gold.
 | `goldSlots`             | Object   | Same five slots, agreed gold values                |
 | `goldConditionType`     | String   | Gold condition type                                |
 | `goldOverallIncomplete` | Boolean  | Computed from `goldSlots` (same rule as above)     |
-| `canonicalRimay`        | String?  | Optional admin-chosen/written reference Rimay      |
 | `resolvedBy`            | ObjectId | → `users._id` (the admin who resolved it)          |
 | `hadDisagreement`       | Boolean  | True if annotators differed on any slot            |
 | `notes`                 | String   | Adjudication notes                                 |

@@ -168,9 +168,9 @@ on their dashboard.
 
 After annotators submit, the admin opens **Admin → Dataset → Adjudicate** on a
 requirement to see everyone's answers **side by side**, with disagreements
-highlighted, and records a **gold standard** per slot (and optionally a canonical
-Rimay). The free-text Rimay conversions are kept individual (not merged) — they
-feed the similarity analysis separately.
+highlighted, and records a **gold standard per slot**. That gold is categorical
+only: the free-text Rimay conversions are kept individual (never merged into one
+"correct" wording) and feed the similarity analysis annotator-to-annotator.
 
 ---
 

@@ -57,13 +57,16 @@ export interface Annotation {
 
 export interface GoldSlots extends Slots {}
 
+/**
+ * The adjudicated gold for one requirement — categorical only. There is no gold
+ * for the conversion *text*: each annotator's `rimayText` stands on its own.
+ */
 export interface Adjudication {
   _id?: string;
   requirementId: string;
   goldSlots: GoldSlots;
   goldConditionType: ConditionType;
   goldOverallIncomplete: boolean;
-  canonicalRimay: string | null;
   resolvedBy?: string;
   hadDisagreement?: boolean;
   notes: string;

@@ -154,7 +154,8 @@ format `username:password:Display Name`, then re-run `npm run seed`. Change
   `nonAtomic`/`nSystemResponses`, `overallIncomplete` (computed server-side),
   `notes`, `status` (`draft`/`submitted`).
 - **adjudications** — one per requirement: `goldSlots`, `goldConditionType`,
-  `goldOverallIncomplete`, optional `canonicalRimay`, `hadDisagreement`.
+  `goldOverallIncomplete`, `hadDisagreement`. Categorical only — there is no gold
+  for the conversion text.
 
 ### Computed incompleteness
 
@@ -203,9 +204,10 @@ check the role.
 ### Export shape
 
 Analysis-ready: **one record per (requirement, annotator)** with all slot values
-flattened (`slot_*`), the gold standard (`gold_*`, `canonicalRimay`), and
-`pragyanIncomp` joined in (export is admin-only, so the Pragyan label is included
-here on purpose). Requirements with no annotations still emit one row.
+flattened (`slot_*`), the categorical gold (`gold_*`), and `pragyanIncomp` joined
+in (export is admin-only, so the Pragyan label is included here on purpose).
+Requirements with no annotations still emit one row. There is no gold conversion
+text — each row carries that annotator's own `rimayText`.
 
 ## Groups
 
