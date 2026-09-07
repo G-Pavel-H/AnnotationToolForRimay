@@ -109,3 +109,57 @@ pre {
   align-items: center;
   gap: 8px;
 }
+
+// Dense read-only data tables (agreement, atomicity). Numeric columns right-
+// aligned, first column left. Shared so every analysis view looks the same.
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 8px 10px;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  th:first-child,
+  td:first-child {
+    text-align: left;
+    white-space: normal;
+  }
+
+  thead th {
+    font-size: 12px;
+    font-weight: 500;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  tbody td {
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+}
+
+.muted {
+  color: #888;
+}
+
+.flagged {
+  color: #b26a00;
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.votes {
+  font-size: 12px;
+  color: #888;
+}

@@ -37,25 +37,14 @@ import { AgreementReport, FieldAgreement, Phase } from '../../core/models';
     MatTooltipModule,
   ],
   templateUrl: './agreement.component.html',
+  // table.data, .muted, .flagged, .scroll and .votes are global (styles.scss),
+  // shared with the other analysis views.
   styles: [
     `
-      table.data { width: 100%; border-collapse: collapse; }
-      table.data th, table.data td { padding: 8px 10px; text-align: right; white-space: nowrap; }
-      table.data th:first-child, table.data td:first-child { text-align: left; white-space: normal; }
-      table.data thead th {
-        font-size: 12px; font-weight: 500; color: #888; text-transform: uppercase;
-        letter-spacing: .05em; border-bottom: 1px solid var(--mat-sys-outline-variant);
-      }
-      table.data tbody td { border-bottom: 1px solid var(--mat-sys-outline-variant); }
-      table.data tbody tr:last-child td { border-bottom: 0; }
-      .muted { color: #888; }
-      .flagged { color: #b26a00; }
       .legend { display: grid; gap: 6px; font-size: 13px; margin-top: 12px; }
       .legend > div { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: baseline; }
       .legend dt { color: inherit; }
       .legend dd { margin: 0; color: #888; }
-      .scroll { overflow-x: auto; }
-      .votes { font-size: 12px; color: #888; }
     `,
   ],
 })

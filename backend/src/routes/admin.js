@@ -11,6 +11,7 @@ const { parseRequirementsCsv } = require('../utils/csvParser');
 const { computeOverallIncomplete } = require('../utils/incompleteness');
 const { buildExportRows, rowsToCsv } = require('../utils/exporter');
 const { buildAgreementReport } = require('../utils/agreement');
+const { buildNonAtomicReport } = require('../utils/nonAtomic');
 const {
   SUGGESTED_PHASES,
   DEFAULT_PHASE,
@@ -368,6 +369,26 @@ function computeHadDisagreement(annotations) {
 }
 
 /**
+ * Load the analysis export rows for one group (or every group when `phase` is
+ * null). `buildExportRows` only emits rows for the requirements it is given, so
+ * filtering requirements by group is enough to scope annotations and gold to
+ * that group. Shared by the export, agreement and atomicity routes so all three
+ * describe exactly the same data.
+ */
+async function loadExportRows(phase) {
+  const [requirements, annotations, adjudications, users] = await Promise.all([
+    Requirement.find(phase ? { phase } : {}).sort({ order: 1, reqId: 1 }),
+    Annotation.find(),
+    Adjudication.find(),
+    User.find(),
+  ]);
+  return {
+    requirements,
+    rows: buildExportRows(requirements, annotations, adjudications, users),
+  };
+}
+
+/**
  * GET /api/admin/export?format=json|csv&phase=<group>
  * Analysis-ready export (admin-only, so pragyanIncomp is included). An optional
  * `phase` limits the export to that group's requirements; omitted = all groups.
@@ -376,18 +397,7 @@ router.get('/export', async (req, res, next) => {
   try {
     const format = (req.query.format || 'json').toLowerCase();
     const phase = normalizePhase(req.query.phase);
-    const reqFilter = phase ? { phase } : {};
-
-    const [requirements, annotations, adjudications, users] = await Promise.all([
-      Requirement.find(reqFilter).sort({ order: 1, reqId: 1 }),
-      Annotation.find(),
-      Adjudication.find(),
-      User.find(),
-    ]);
-
-    // buildExportRows only emits rows for the requirements passed in, so filtering
-    // requirements by phase is enough to scope annotations + gold to that phase.
-    const rows = buildExportRows(requirements, annotations, adjudications, users);
+    const { rows } = await loadExportRows(phase);
     const scope = phase || 'all';
     // Group names are free-form, so keep the filename to safe characters.
     const slug = scope.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'export';
@@ -417,16 +427,8 @@ router.get('/agreement', async (req, res, next) => {
   try {
     const phase = normalizePhase(req.query.phase);
     const status = req.query.status === 'submitted' ? 'submitted' : 'all';
-    const reqFilter = phase ? { phase } : {};
+    const { requirements, rows } = await loadExportRows(phase);
 
-    const [requirements, annotations, adjudications, users] = await Promise.all([
-      Requirement.find(reqFilter).sort({ order: 1, reqId: 1 }),
-      Annotation.find(),
-      Adjudication.find(),
-      User.find(),
-    ]);
-
-    const rows = buildExportRows(requirements, annotations, adjudications, users);
     const report = buildAgreementReport(rows, {
       phase,
       status,
@@ -434,6 +436,24 @@ router.get('/agreement', async (req, res, next) => {
     });
 
     res.json(report);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/admin/non-atomic?phase=<group>&status=all|submitted
+ * Every requirement at least one annotator flagged as non-atomic, with the
+ * whole panel's verdict on each — the agenda for deciding which requirements
+ * must be split or excluded before conversion. Same scoping as /agreement.
+ */
+router.get('/non-atomic', async (req, res, next) => {
+  try {
+    const phase = normalizePhase(req.query.phase);
+    const status = req.query.status === 'submitted' ? 'submitted' : 'all';
+    const { rows } = await loadExportRows(phase);
+
+    res.json(buildNonAtomicReport(rows, { phase, status }));
   } catch (err) {
     next(err);
   }

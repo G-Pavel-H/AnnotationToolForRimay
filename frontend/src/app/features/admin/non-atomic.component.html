@@ -1,0 +1,144 @@
+<!-- Scope -->
+<mat-card style="margin-bottom:16px;">
+  <mat-card-content style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding-top:16px;">
+    <mat-form-field appearance="outline" style="width:220px;" subscriptSizing="dynamic">
+      <mat-label>Group</mat-label>
+      <mat-select [(ngModel)]="scope" (selectionChange)="load()">
+        <mat-option value="all">All groups</mat-option>
+        @for (p of phases(); track p) { <mat-option [value]="p">{{ p }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-button-toggle-group [(ngModel)]="status" (change)="load()" style="height:40px;">
+      <mat-button-toggle value="all" matTooltip="Count drafts as well as submitted annotations">
+        All annotations
+      </mat-button-toggle>
+      <mat-button-toggle value="submitted" matTooltip="Only count submitted annotations">
+        Submitted only
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+
+    <mat-button-toggle-group
+      [ngModel]="consensus()"
+      (ngModelChange)="consensus.set($event)"
+      style="height:40px;"
+    >
+      <mat-button-toggle value="all" matTooltip="Every requirement someone flagged">All flagged</mat-button-toggle>
+      <mat-button-toggle value="unanimous" matTooltip="Every annotator who rated it flagged it">
+        Unanimous
+      </mat-button-toggle>
+      <mat-button-toggle value="contested" matTooltip="Annotators split on whether it is atomic">
+        Contested
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+
+    <button mat-stroked-button (click)="load()"><mat-icon>refresh</mat-icon> Reload</button>
+    <span class="spacer"></span>
+    @if (visible().length) {
+      <button mat-stroked-button (click)="downloadCsv()" matTooltip="Save the rows shown below as CSV">
+        <mat-icon>download</mat-icon> CSV
+      </button>
+    }
+  </mat-card-content>
+</mat-card>
+
+@if (loading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+@if (report(); as r) {
+  <!-- Summary -->
+  <mat-card style="margin-bottom:16px;">
+    <mat-card-header>
+      <mat-card-title>Atomicity review — {{ r.meta.phase || 'all groups' }}</mat-card-title>
+      <mat-card-subtitle>
+        {{ r.meta.nFlagged }} of {{ r.meta.nRequirements }} requirement{{ r.meta.nRequirements === 1 ? '' : 's' }}
+        flagged non-atomic by at least one annotator ·
+        {{ r.meta.nUnanimous }} unanimous · {{ r.meta.nFlagged - r.meta.nUnanimous }} contested ·
+        {{ r.meta.annotators.length }} annotators ({{ r.meta.annotators.join(', ') }}) ·
+        {{ r.meta.status === 'submitted' ? 'submitted only' : 'drafts included' }}
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <p class="muted" style="font-size:13px; margin:8px 0 0;">
+        Rimay requires one system response per requirement. These are the source requirements an
+        annotator judged to carry more than one — each needs a decision: split, rewrite, or exclude
+        from conversion.
+      </p>
+    </mat-card-content>
+  </mat-card>
+
+  @if (!r.meta.nFlagged) {
+    <mat-card>
+      <mat-card-content style="padding-top:16px;">
+        <p class="muted">No requirement in this scope was flagged as non-atomic.</p>
+      </mat-card-content>
+    </mat-card>
+  } @else {
+    <mat-card>
+      <mat-card-content style="padding-top:16px;">
+        @if (!visible().length) {
+          <p class="muted">
+            No {{ consensus() }} requirements — {{ r.meta.nFlagged }} flagged overall.
+          </p>
+        } @else {
+          <div class="scroll">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Requirement</th>
+                  @for (a of r.meta.annotators; track a) { <th>{{ a }}</th> }
+                  <th matTooltip="How many annotators flagged it, of those who rated it">Flagged</th>
+                  <th matTooltip="Highest system-response count any flagger recorded">Responses</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of visible(); track row.reqId) {
+                  <tr>
+                    <td>
+                      <div class="req-id">{{ row.reqId }}</div>
+                      <div class="nl-text">{{ row.nlText }}</div>
+                      @for (n of flaggerNotes(row); track n.rater) {
+                        <div class="votes">{{ n.rater }}: {{ n.notes }}</div>
+                      }
+                    </td>
+                    @for (v of row.votes; track v.rater) {
+                      <td
+                        [class.vote-yes]="v.nonAtomic === true"
+                        [class.vote-no]="v.nonAtomic === false"
+                        [class.vote-none]="v.nonAtomic === null"
+                        [matTooltip]="v.nonAtomic === null ? 'did not rate this requirement' : ''"
+                      >
+                        @if (v.nonAtomic === null) { — }
+                        @else if (v.nonAtomic) {
+                          non-atomic@if (v.nSystemResponses !== null) { <span class="votes">({{ v.nSystemResponses }})</span> }
+                        }
+                        @else { atomic }
+                      </td>
+                    }
+                    <td>
+                      {{ row.nFlagged }} / {{ row.nRated }}
+                      @if (row.unanimous) {
+                        <mat-icon
+                          class="flagged"
+                          style="font-size:16px; height:16px; width:16px; vertical-align:text-bottom;"
+                          matTooltip="Every annotator who rated it agreed it is non-atomic"
+                          >check_circle</mat-icon
+                        >
+                      }
+                    </td>
+                    <td class="muted">{{ row.maxSystemResponses ?? '—' }}</td>
+                    <td>
+                      <button mat-stroked-button (click)="adjudicate(row.requirementId)">
+                        <mat-icon>gavel</mat-icon> Open
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+  }
+}

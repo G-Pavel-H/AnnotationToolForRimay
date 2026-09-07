@@ -5,6 +5,7 @@ import {
   Adjudication,
   AgreementReport,
   Annotation,
+  NonAtomicReport,
   Phase,
   PhasesResponse,
   ProgressResponse,
@@ -139,6 +140,12 @@ export class ApiService {
     let params = new HttpParams().set('status', status);
     if (phase && phase !== 'all') params = params.set('phase', phase);
     return this.http.get<AgreementReport>('/api/admin/agreement', { params });
+  }
+
+  getNonAtomic(phase?: Phase | 'all', status: 'all' | 'submitted' = 'all'): Observable<NonAtomicReport> {
+    let params = new HttpParams().set('status', status);
+    if (phase && phase !== 'all') params = params.set('phase', phase);
+    return this.http.get<NonAtomicReport>('/api/admin/non-atomic', { params });
   }
 
   exportUrl(format: 'json' | 'csv', phase?: Phase | 'all'): string {

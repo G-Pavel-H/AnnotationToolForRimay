@@ -154,6 +154,41 @@ export interface AgreementReport {
   reason?: string;
 }
 
+// --- atomicity review (see backend/src/utils/nonAtomic.js) ------------------
+
+/** One annotator's verdict on a requirement. `nonAtomic: null` = never rated it. */
+export interface AtomicityVote {
+  rater: string;
+  nonAtomic: boolean | null;
+  nSystemResponses: number | null;
+  notes: string;
+}
+
+export interface NonAtomicRequirement {
+  reqId: string;
+  requirementId: string;
+  phase: Phase;
+  nlText: string;
+  votes: AtomicityVote[];
+  nFlagged: number;
+  nRated: number;
+  unanimous: boolean;
+  maxSystemResponses: number | null;
+}
+
+export interface NonAtomicReport {
+  meta: {
+    phase: Phase | null;
+    status: 'all' | 'submitted';
+    annotators: string[];
+    nRequirements: number;
+    nFlagged: number;
+    nUnanimous: number;
+    generatedAt: string;
+  };
+  requirements: NonAtomicRequirement[];
+}
+
 export const SLOT_FIELDS: Array<{ key: keyof Slots; label: string; mandatory: boolean }> = [
   { key: 'scope', label: 'Scope', mandatory: false },
   { key: 'condition', label: 'Condition', mandatory: false },

@@ -75,6 +75,18 @@ function normalizeValue(raw) {
   return String(raw).trim().toLowerCase();
 }
 
+/**
+ * Narrow raw export rows to actual ratings: drop the placeholder row that a
+ * requirement with no annotations emits, and drop drafts when asked. Shared by
+ * every report built on the export, so they all count the same annotations.
+ */
+function scopeRows(exportRows, status) {
+  const rated = exportRows.filter((row) => normalizeValue(row[RATER_KEY]) !== '');
+  return status === 'submitted'
+    ? rated.filter((row) => normalizeValue(row.annotationStatus) === 'submitted')
+    : rated;
+}
+
 // --- the two Kappas ----------------------------------------------------------
 
 /**
@@ -389,12 +401,7 @@ function buildAgreementReport(exportRows, options = {}) {
   const requirementIdByReqId =
     options.requirementIdByReqId instanceof Map ? options.requirementIdByReqId : new Map();
 
-  // Requirements with no annotations appear in the export as a single row with
-  // a null annotator — they carry no rating and must not count as one.
-  let rows = exportRows.filter((row) => normalizeValue(row[RATER_KEY]) !== '');
-  if (status === 'submitted') {
-    rows = rows.filter((row) => normalizeValue(row.annotationStatus) === 'submitted');
-  }
+  const rows = scopeRows(exportRows, status);
 
   const warnings = [];
   const raters = [...new Set(rows.map((row) => row[RATER_KEY]))].sort();
@@ -456,6 +463,10 @@ function buildAgreementReport(exportRows, options = {}) {
 
 module.exports = {
   buildAgreementReport,
+  scopeRows,
+  normalizeValue,
+  SUBJECT_KEY,
+  RATER_KEY,
   fleissKappa,
   cohenKappa,
   landisKoch,
