@@ -73,7 +73,7 @@
     <thead><tr><th>Collection</th><th>Count</th><th>Holds</th></tr></thead>
     <tbody>
       <tr><td class="k">requirements</td><td class="k">100</td><td>The source NL. Groups: <code>main</code> 50 · <code>OLD_MAIN</code> 26 · <code>training</code> 14 · <code>pilot</code> 10</td></tr>
-      <tr><td class="k">annotations</td><td class="k">247<span class="c"> (242 submitted)</span></td><td>Per annotator per requirement: <code>rimayText</code>, 5 <code>slots</code>, <code>conditionType</code>, <code>nonAtomic</code>, <code>notes</code>, <code>refinedRimay</code></td></tr>
+      <tr><td class="k">annotations</td><td class="k">247<span class="c"> (242 submitted)</span></td><td>Per annotator per requirement: <code>rimayText</code>, 5 <code>slots</code>, <code>conditionType</code>, <code>nonAtomic</code>, <code>notes</code></td></tr>
       <tr><td class="k">adjudications</td><td class="k">44</td><td>Gold slot labels. <code>training</code> 14 (by hand) · <code>main</code> 30 (majority-derived)</td></tr>
       <tr><td class="k">users</td><td class="k">4</td><td>admin + Arthur, Rafo, Mko</td></tr>
     </tbody>
@@ -136,16 +136,16 @@ DATABASE.md · README.md · WORKFLOW.md
     <tr><td class="k">Dataset</td><td>requirements, group assignment, import</td><td class="k">csvParser.js</td></tr>
     <tr><td class="k">Agreement</td><td>Fleiss' / Cohen's kappa per slot, gold agreement, disagreements</td><td class="k">agreement.js</td></tr>
     <tr><td class="k">Atomicity</td><td>every requirement ≥1 annotator called non-atomic, who flagged it</td><td class="k">nonAtomic.js</td></tr>
-    <tr><td class="k">Curation</td><td>the 30 atomic ones: 3 annotator conversions (editable) + Opus reference</td><td class="k">admin.js /curation</td></tr>
+    <tr><td class="k">Curation</td><td>the 30 atomic ones: 3 annotator conversions + Opus reference. <strong>Read-only.</strong></td><td class="k">admin.js /curation</td></tr>
     <tr><td class="k">Export</td><td>downloads the CSV/JSON that RQ1 consumes</td><td class="k">exporter.js</td></tr>
   </tbody>
 </table>
 </div>
 
 <div class="note">
-  <strong>Curation never overwrites.</strong> <code>rimayText</code> stays exactly as the annotator submitted it;
-  your revision goes to <code>refinedRimay</code> with <code>refinedBy</code>/<code>refinedAt</code>.
-  Both are in the export, so the experiment can be scored against either.
+  <strong>The database is never edited for curation.</strong> It holds exactly what the annotators
+  submitted. Improved conversions are made offline on an exported copy — see
+  <code>RQ1ConvertToRimay/data/refinements.json</code> and <code>scripts/apply_refinements.py</code>.
 </div>
 
 </div>

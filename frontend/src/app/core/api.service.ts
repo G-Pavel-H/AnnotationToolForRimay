@@ -155,14 +155,6 @@ export class ApiService {
     return this.http.get<CurationResponse>('/api/admin/curation', { params });
   }
 
-  /** Save (or clear, with an empty string) an admin revision of one conversion. */
-  saveRefinedRimay(annotationId: string, refinedRimay: string): Observable<{ annotation: Annotation }> {
-    return this.http.put<{ annotation: Annotation }>(
-      `/api/admin/annotations/${annotationId}/refined`,
-      { refinedRimay }
-    );
-  }
-
   exportUrl(format: 'json' | 'csv', phase?: Phase | 'all'): string {
     let url = `/api/admin/export?format=${format}`;
     if (phase && phase !== 'all') url += `&phase=${encodeURIComponent(phase)}`;

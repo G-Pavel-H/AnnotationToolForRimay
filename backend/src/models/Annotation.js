@@ -41,15 +41,6 @@ const annotationSchema = new mongoose.Schema(
     overallIncomplete: { type: Boolean, default: false },
     notes: { type: String, default: '' },
     status: { type: String, enum: ['draft', 'submitted'], default: 'draft' },
-
-    // --- admin curation -----------------------------------------------------
-    // A revised conversion written by the admin while reviewing the corpus.
-    // `rimayText` above is NEVER modified: it stays exactly as the annotator
-    // submitted it, so the original human baseline can always be recomputed and
-    // the revision can be reported separately. Empty means "not revised".
-    refinedRimay: { type: String, default: '' },
-    refinedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-    refinedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

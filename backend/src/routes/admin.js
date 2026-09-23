@@ -394,9 +394,11 @@ async function loadExportRows(phase) {
 /**
  * GET /api/admin/curation?phase=<group>
  *
- * Everything the curation screen needs, in one call: every **atomic**
- * requirement in the group, each annotator's submitted conversion and slots,
- * any admin revision already written, and the reference LLM conversions.
+ * Read-only view for reviewing the corpus: every **atomic** requirement in the
+ * group, each annotator's submitted conversion and slots, and the reference LLM
+ * conversions. Nothing is written back — revisions to the annotators' text are
+ * made offline, on an exported copy (RQ1ConvertToRimay/scripts/apply_refinements.py),
+ * so the database always holds exactly what the annotators submitted.
  *
  * "Atomic" uses the same three signals as the Atomicity tab and the offline RQ1
  * filter, so all three views agree on the working set.
@@ -439,8 +441,6 @@ router.get('/curation', async (req, res, next) => {
             _id: a._id.toString(),
             annotator: a.annotatorId ? a.annotatorId.displayName : 'Unknown',
             rimayText: a.rimayText || '',
-            refinedRimay: a.refinedRimay || '',
-            refinedAt: a.refinedAt,
             slots: a.slots,
             conditionType: a.conditionType,
             notes: a.notes || '',
@@ -461,36 +461,6 @@ router.get('/curation', async (req, res, next) => {
         copiedAt: reference.copiedAt,
       },
     });
-  } catch (err) {
-    next(err);
-  }
-});
-
-/**
- * PUT /api/admin/annotations/:id/refined -> save an admin-revised conversion.
- *
- * Curation, not adjudication: the annotator's own `rimayText` is left exactly
- * as submitted so the original human baseline stays recomputable, and the
- * revision is stored beside it. Sending an empty string clears the revision and
- * falls back to the original.
- */
-router.put('/annotations/:id/refined', async (req, res, next) => {
-  try {
-    const annotation = await Annotation.findById(req.params.id);
-    if (!annotation) return res.status(404).json({ error: 'Annotation not found' });
-
-    const text = (req.body || {}).refinedRimay;
-    if (typeof text !== 'string') {
-      return res.status(400).json({ error: 'refinedRimay must be a string' });
-    }
-
-    const cleared = !text.trim();
-    annotation.refinedRimay = cleared ? '' : text;
-    annotation.refinedBy = cleared ? null : req.user._id;
-    annotation.refinedAt = cleared ? null : new Date();
-    await annotation.save();
-
-    res.json({ annotation });
   } catch (err) {
     next(err);
   }

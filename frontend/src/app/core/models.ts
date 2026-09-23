@@ -189,15 +189,13 @@ export interface NonAtomicReport {
   requirements: NonAtomicRequirement[];
 }
 
-// --- curation (admin refinement of annotator conversions) -------------------
+// --- curation (read-only review of annotator conversions) --------------------
 
-/** One annotator's conversion for a requirement, plus any admin revision. */
+/** One annotator's submitted conversion for a requirement. */
 export interface CurationAnnotation {
   _id: string;
   annotator: string;
-  rimayText: string;      // exactly as submitted — never modified
-  refinedRimay: string;   // admin revision; empty means "not revised"
-  refinedAt: string | null;
+  rimayText: string;
   slots: Slots;
   conditionType: ConditionType;
   notes: string;
