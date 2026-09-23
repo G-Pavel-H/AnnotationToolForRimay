@@ -20,6 +20,7 @@ import { ApiService } from '../../core/api.service';
 import { Phase, ProgressResponse, Requirement } from '../../core/models';
 import { AgreementComponent } from './agreement.component';
 import { NonAtomicComponent } from './non-atomic.component';
+import { CurationComponent } from './curation.component';
 
 /**
  * Sentinel for the "＋ New group…" entry in a group picker. It is never stored:
@@ -49,6 +50,7 @@ const NEW_GROUP = '__new__';
     MatAutocompleteModule,
     AgreementComponent,
     NonAtomicComponent,
+    CurationComponent,
   ],
   templateUrl: './admin-dashboard.component.html',
   styles: [
@@ -73,7 +75,7 @@ export class AdminDashboardComponent implements OnInit {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
 
-  // Tab order: 0 Progress, 1 Dataset, 2 Agreement, 3 Atomicity, 4 Export.
+  // Tab order: 0 Progress, 1 Dataset, 2 Agreement, 3 Atomicity, 4 Curation, 5 Export.
   // Driven by the ?tab= query param so returning from adjudication lands back
   // on the tab it was opened from.
   private readonly TAB_INDEX: Record<string, number> = {
@@ -81,7 +83,8 @@ export class AdminDashboardComponent implements OnInit {
     dataset: 1,
     agreement: 2,
     atomicity: 3,
-    export: 4,
+    curation: 4,
+    export: 5,
   };
   selectedTab = signal(0);
 

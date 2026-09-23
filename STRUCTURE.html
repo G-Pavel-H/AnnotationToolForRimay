@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AnnotationToolForRimay — what lives where</title>
+<style>
+  :root{
+    --bg:#fbfbfc; --card:#fff; --ink:#1b1d21; --muted:#7a8089; --line:#e4e6ea;
+    --data:#1565c0; --data-bg:#e8f0fe;
+    --calc:#b26a00; --calc-bg:#fdf1dc;
+    --out:#2e7d32;  --out-bg:#e8f5e9;
+    --warn:#b71c1c; --warn-bg:#fdecea;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#111315; --card:#181b1e; --ink:#e7e9ec; --muted:#9aa1aa; --line:#2a2e33;
+           --data-bg:#13243a; --calc-bg:#33280f; --out-bg:#13291a; --warn-bg:#331616;
+           --data:#7cb0f0; --calc:#e0a94a; --out:#7fc98a; --warn:#ef8a83; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 20px 64px}
+  h1{font-size:22px;margin:0 0 4px}
+  h2{font-size:15px;margin:32px 0 10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .sub{color:var(--muted);margin:0 0 24px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:14px}
+  .flow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
+  .flow .box{background:var(--data-bg);color:var(--data);border-radius:6px;padding:6px 10px;font-weight:600}
+  .flow .arrow{color:var(--muted)}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+  td.k{white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+  tr:last-child td{border-bottom:0}
+  pre.tree{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.75;
+           margin:0;overflow-x:auto;white-space:pre}
+  .c{color:var(--muted)}
+  .tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;
+       padding:1px 6px;border-radius:4px;vertical-align:2px}
+  .t-data{background:var(--data-bg);color:var(--data)}
+  .t-calc{background:var(--calc-bg);color:var(--calc)}
+  .t-out{background:var(--out-bg);color:var(--out)}
+  .note{background:var(--warn-bg);color:var(--ink);border-left:3px solid var(--warn);
+        border-radius:0 6px 6px 0;padding:10px 14px;margin:14px 0;font-size:13px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:20px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>AnnotationToolForRimay</h1>
+<p class="sub">The human annotation app. <strong>Source of truth for all human data.</strong> Knows nothing about the LLM except one static snapshot.</p>
+
+<div class="card flow">
+  <span class="box">Mongo Atlas</span><span class="arrow">→</span>
+  <span class="box">CSV export</span><span class="arrow">→</span>
+  <span class="box">RQ1ConvertToRimay</span>
+  <span class="arrow" style="margin-left:8px">(one-way — nothing flows back)</span>
+</div>
+
+<div class="legend">
+  <span><span class="tag t-data">DATA</span> where data lives</span>
+  <span><span class="tag t-calc">CALC</span> where numbers are computed</span>
+  <span><span class="tag t-out">UI</span> what you click</span>
+</div>
+
+<h2>The data is not in this repo</h2>
+<div class="card">
+  <p style="margin:0 0 12px;color:var(--muted)">It's in MongoDB Atlas, database <code>test</code>. Connection string in <code>backend/.env</code> (gitignored).</p>
+  <table>
+    <thead><tr><th>Collection</th><th>Count</th><th>Holds</th></tr></thead>
+    <tbody>
+      <tr><td class="k">requirements</td><td class="k">100</td><td>The source NL. Groups: <code>main</code> 50 · <code>OLD_MAIN</code> 26 · <code>training</code> 14 · <code>pilot</code> 10</td></tr>
+      <tr><td class="k">annotations</td><td class="k">247<span class="c"> (242 submitted)</span></td><td>Per annotator per requirement: <code>rimayText</code>, 5 <code>slots</code>, <code>conditionType</code>, <code>nonAtomic</code>, <code>notes</code>, <code>refinedRimay</code></td></tr>
+      <tr><td class="k">adjudications</td><td class="k">44</td><td>Gold slot labels. <code>training</code> 14 (by hand) · <code>main</code> 30 (majority-derived)</td></tr>
+      <tr><td class="k">users</td><td class="k">4</td><td>admin + Arthur, Rafo, Mko</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="note">
+  <strong>The 30 / 20 split does not exist here.</strong> All 50 <code>main</code> requirements sit in the DB as normal.
+  "The 30 atomic ones" is a filter applied downstream — it only exists as a CSV in the RQ1 repo,
+  and as a live computation in the Curation tab.
+</div>
+
+<h2>Repo tree</h2>
+<div class="card">
+<pre class="tree">
+backend/
+  data/
+    llm_reference.json        <span class="tag t-data">DATA</span> <span class="c">Opus conversions, 30 reqs × 3 strategies. Static copy from
+                                   RQ1 outputs/main30opus. Read-only guide shown in Curation.</span>
+  src/
+    models/                   <span class="tag t-data">DATA</span> <span class="c">the 4 Mongo schemas above</span>
+    utils/
+      agreement.js            <span class="tag t-calc">CALC</span> <span class="c">Fleiss' + Cohen's kappa, raw agreement, gold agreement,
+                                   disagreement worksheet</span>
+      nonAtomic.js            <span class="tag t-calc">CALC</span> <span class="c">atomicity detection — 3 signals: checkbox,
+                                   &lt;NON_ATOMIC&gt; tag in text, prose in notes</span>
+      exporter.js             <span class="tag t-calc">CALC</span> <span class="c">builds the CSV/JSON export — THE handoff to RQ1.
+                                   One row per (requirement, annotator)</span>
+      incompleteness.js       <span class="tag t-calc">CALC</span> <span class="c">overallIncomplete = any mandatory slot missing</span>
+      phases.js               <span class="c">group naming</span>
+      llmReference.js         <span class="c">reads data/llm_reference.json</span>
+      csvParser.js            <span class="c">requirement import parsing</span>
+    routes/
+      admin.js                <span class="c">export · agreement · non-atomic · curation · adjudications</span>
+      annotations.js          <span class="c">annotator CRUD (own work only — 403 otherwise)</span>
+  scripts/
+    seed_users.js             <span class="c">create the 4 accounts</span>
+    import_requirements.js    <span class="c">load the NL corpus</span>
+    assign_majority_gold.js   <span class="tag t-calc">CALC</span> <span class="c">derive gold slots from annotator majority
+                                   (3-way tie → 'implied'); skips non-atomic</span>
+  tests/                      <span class="c">60 tests — kappa maths, export shape, atomicity</span>
+
+frontend/src/
+  app/features/admin/         <span class="tag t-out">UI</span> <span class="c">the 6 admin tabs (below)</span>
+  app/features/annotate/      <span class="tag t-out">UI</span> <span class="c">the annotator's editor</span>
+  assets/annotation_guide.md  <span class="tag t-data">DATA</span> <span class="c">the guide annotators read in-app</span>
+
+STRUCTURE.html                <span class="c">this file</span>
+BACKLOG.md                    <span class="c">shared backlog (duplicate of the RQ1 copy)</span>
+DATABASE.md · README.md · WORKFLOW.md
+</pre>
+</div>
+
+<h2>Admin tabs — what each one does</h2>
+<div class="card">
+<table>
+  <thead><tr><th>Tab</th><th>Shows</th><th>Computed by</th></tr></thead>
+  <tbody>
+    <tr><td class="k">Progress</td><td>who has annotated what, per group</td><td class="k">routes/admin.js</td></tr>
+    <tr><td class="k">Dataset</td><td>requirements, group assignment, import</td><td class="k">csvParser.js</td></tr>
+    <tr><td class="k">Agreement</td><td>Fleiss' / Cohen's kappa per slot, gold agreement, disagreements</td><td class="k">agreement.js</td></tr>
+    <tr><td class="k">Atomicity</td><td>every requirement ≥1 annotator called non-atomic, who flagged it</td><td class="k">nonAtomic.js</td></tr>
+    <tr><td class="k">Curation</td><td>the 30 atomic ones: 3 annotator conversions (editable) + Opus reference</td><td class="k">admin.js /curation</td></tr>
+    <tr><td class="k">Export</td><td>downloads the CSV/JSON that RQ1 consumes</td><td class="k">exporter.js</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <strong>Curation never overwrites.</strong> <code>rimayText</code> stays exactly as the annotator submitted it;
+  your revision goes to <code>refinedRimay</code> with <code>refinedBy</code>/<code>refinedAt</code>.
+  Both are in the export, so the experiment can be scored against either.
+</div>
+
+</div>
+</body>
+</html>

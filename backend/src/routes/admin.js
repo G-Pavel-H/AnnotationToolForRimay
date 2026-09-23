@@ -11,7 +11,8 @@ const { parseRequirementsCsv } = require('../utils/csvParser');
 const { computeOverallIncomplete } = require('../utils/incompleteness');
 const { buildExportRows, rowsToCsv } = require('../utils/exporter');
 const { buildAgreementReport } = require('../utils/agreement');
-const { buildNonAtomicReport } = require('../utils/nonAtomic');
+const { buildNonAtomicReport, signalsFor } = require('../utils/nonAtomic');
+const { loadLlmReference } = require('../utils/llmReference');
 const {
   SUGGESTED_PHASES,
   DEFAULT_PHASE,
@@ -28,6 +29,8 @@ const SLOT_KEYS = ['scope', 'condition', 'actor', 'modalVerb', 'action'];
 const CONDITION_TYPES = ['precondition', 'trigger', 'temporal', 'none'];
 
 const BAD_PHASE = 'phase must be a non-empty name of at most 40 characters';
+
+const normalizeStatus = (v) => String(v || '').trim().toLowerCase();
 
 /**
  * POST /api/admin/requirements/import
@@ -387,6 +390,111 @@ async function loadExportRows(phase) {
     rows: buildExportRows(requirements, annotations, adjudications, users),
   };
 }
+
+/**
+ * GET /api/admin/curation?phase=<group>
+ *
+ * Everything the curation screen needs, in one call: every **atomic**
+ * requirement in the group, each annotator's submitted conversion and slots,
+ * any admin revision already written, and the reference LLM conversions.
+ *
+ * "Atomic" uses the same three signals as the Atomicity tab and the offline RQ1
+ * filter, so all three views agree on the working set.
+ */
+router.get('/curation', async (req, res, next) => {
+  try {
+    const phase = normalizePhase(req.query.phase);
+    const { requirements, rows } = await loadExportRows(phase);
+
+    // Which requirements any annotator flagged non-atomic (submitted only).
+    const nonAtomic = new Set();
+    rows.forEach((row) => {
+      if (normalizeStatus(row.annotationStatus) !== 'submitted') return;
+      if (signalsFor(row).length) nonAtomic.add(row.reqId);
+    });
+
+    const annotations = await Annotation.find({ status: 'submitted' }).populate(
+      'annotatorId',
+      'username displayName'
+    );
+    const byRequirement = new Map();
+    annotations.forEach((a) => {
+      const key = a.requirementId.toString();
+      if (!byRequirement.has(key)) byRequirement.set(key, []);
+      byRequirement.get(key).push(a);
+    });
+
+    const reference = loadLlmReference();
+
+    const items = requirements
+      .filter((r) => !nonAtomic.has(r.reqId))
+      .map((r) => ({
+        requirementId: r._id.toString(),
+        reqId: r.reqId,
+        phase: r.phase,
+        nlText: r.nlText,
+        nlDescription: r.nlDescription,
+        annotations: (byRequirement.get(r._id.toString()) || [])
+          .map((a) => ({
+            _id: a._id.toString(),
+            annotator: a.annotatorId ? a.annotatorId.displayName : 'Unknown',
+            rimayText: a.rimayText || '',
+            refinedRimay: a.refinedRimay || '',
+            refinedAt: a.refinedAt,
+            slots: a.slots,
+            conditionType: a.conditionType,
+            notes: a.notes || '',
+          }))
+          .sort((x, y) => x.annotator.localeCompare(y.annotator)),
+        llm: reference.conversions[r.reqId] || null,
+      }));
+
+    res.json({
+      phase: phase || null,
+      nTotal: requirements.length,
+      nNonAtomic: nonAtomic.size,
+      items,
+      llmMeta: {
+        source: reference.source,
+        model: reference.model,
+        strategies: reference.strategies,
+        copiedAt: reference.copiedAt,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/admin/annotations/:id/refined -> save an admin-revised conversion.
+ *
+ * Curation, not adjudication: the annotator's own `rimayText` is left exactly
+ * as submitted so the original human baseline stays recomputable, and the
+ * revision is stored beside it. Sending an empty string clears the revision and
+ * falls back to the original.
+ */
+router.put('/annotations/:id/refined', async (req, res, next) => {
+  try {
+    const annotation = await Annotation.findById(req.params.id);
+    if (!annotation) return res.status(404).json({ error: 'Annotation not found' });
+
+    const text = (req.body || {}).refinedRimay;
+    if (typeof text !== 'string') {
+      return res.status(400).json({ error: 'refinedRimay must be a string' });
+    }
+
+    const cleared = !text.trim();
+    annotation.refinedRimay = cleared ? '' : text;
+    annotation.refinedBy = cleared ? null : req.user._id;
+    annotation.refinedAt = cleared ? null : new Date();
+    await annotation.save();
+
+    res.json({ annotation });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /**
  * GET /api/admin/export?format=json|csv&phase=<group>

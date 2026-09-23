@@ -1,0 +1,147 @@
+<!-- Scope + navigation -->
+<mat-card style="margin-bottom:16px;">
+  <mat-card-content style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; padding-top:16px;">
+    <mat-form-field appearance="outline" style="width:200px;" subscriptSizing="dynamic">
+      <mat-label>Group</mat-label>
+      <mat-select [(ngModel)]="scope" (selectionChange)="load()">
+        @for (p of phases(); track p) { <mat-option [value]="p">{{ p }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+
+    @if (data(); as d) {
+      <div class="nav">
+        <button mat-stroked-button (click)="go(-1)" [disabled]="index() === 0">
+          <mat-icon>chevron_left</mat-icon> Previous
+        </button>
+        <span class="pos">{{ index() + 1 }} / {{ total() }}</span>
+        <button mat-stroked-button (click)="go(1)" [disabled]="index() + 1 >= total()">
+          Next <mat-icon>chevron_right</mat-icon>
+        </button>
+      </div>
+      <span class="spacer" style="flex:1;"></span>
+      <span class="pos">
+        {{ d.nTotal }} in group · {{ d.nNonAtomic }} non-atomic excluded ·
+        <strong>{{ total() }} to curate</strong> · {{ revisedCount() }} revision(s) written
+      </span>
+    }
+  </mat-card-content>
+</mat-card>
+
+@if (loading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+@if (data(); as d) {
+  @if (!total()) {
+    <mat-card><mat-card-content style="padding-top:16px;">
+      <p class="muted">Nothing to curate in this group — every requirement was flagged non-atomic,
+        or none has submitted annotations.</p>
+    </mat-card-content></mat-card>
+  } @else {
+    @if (current(); as item) {
+
+    <!-- Source requirement -->
+    <mat-card style="margin-bottom:16px;">
+      <mat-card-header>
+        <mat-card-title>{{ item.reqId }}</mat-card-title>
+        <mat-card-subtitle>Source requirement · group {{ item.phase }}</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <pre class="code-block" style="white-space:pre-wrap; padding:10px; font-size:13px; margin:0;">{{ item.nlText }}</pre>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Reference model conversions -->
+    @if (strategies().length) {
+      <mat-card style="margin-bottom:16px;">
+        <mat-card-header>
+          <mat-card-title>Reference — {{ d.llmMeta.model }}</mat-card-title>
+          <mat-card-subtitle>
+            Guidance only, not gold. Sometimes better than the annotators, sometimes worse —
+            borrow a phrasing when it genuinely reads better.
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          @for (s of strategies(); track s) {
+            <div class="llm-row">
+              <span class="strategy">{{ s }}</span>
+              <span class="text">{{ item.llm![s] }}</span>
+            </div>
+          }
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Annotator conversions, each with a revision box -->
+    @for (a of item.annotations; track a._id) {
+      <mat-card style="margin-bottom:16px;">
+        <mat-card-content style="padding-top:16px;">
+          <div class="annotator">
+            <span class="name">{{ a.annotator }}</span>
+            @if (a.refinedRimay) { <span class="revised">· revised</span> }
+            <span class="spacer" style="flex:1;"></span>
+            <span class="slotline">{{ slotSummary(item, a._id) }}</span>
+          </div>
+
+          <p class="original">{{ a.rimayText || '(no conversion written)' }}</p>
+
+          <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
+            <mat-label>Refined conversion</mat-label>
+            <textarea
+              matInput
+              rows="3"
+              [(ngModel)]="drafts[a._id]"
+              placeholder="Leave empty to keep the original as-is"
+            ></textarea>
+          </mat-form-field>
+
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+            <button
+              mat-raised-button
+              color="primary"
+              (click)="save(a._id)"
+              [disabled]="saving() || !isDirty(a._id, a.refinedRimay)"
+            >
+              <mat-icon>save</mat-icon> Save
+            </button>
+            <button
+              mat-stroked-button
+              (click)="revert(a._id, a.refinedRimay)"
+              [disabled]="!isDirty(a._id, a.refinedRimay)"
+            >
+              Undo
+            </button>
+            <button
+              mat-stroked-button
+              (click)="drafts[a._id] = a.rimayText"
+              matTooltip="Start from this annotator's own text"
+            >
+              <mat-icon>content_copy</mat-icon> Copy original
+            </button>
+            @for (s of strategies(); track s) {
+              <button
+                mat-stroked-button
+                (click)="useLlm(a._id, item.llm![s])"
+                [matTooltip]="item.llm![s]"
+              >
+                Use {{ s }}
+              </button>
+            }
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Bottom navigation -->
+    <mat-card>
+      <mat-card-content style="padding-top:16px;" class="nav">
+        <button mat-stroked-button (click)="go(-1)" [disabled]="index() === 0">
+          <mat-icon>chevron_left</mat-icon> Previous
+        </button>
+        <span class="pos">{{ index() + 1 }} / {{ total() }}</span>
+        <button mat-raised-button color="primary" (click)="go(1)" [disabled]="index() + 1 >= total()">
+          Next <mat-icon>chevron_right</mat-icon>
+        </button>
+      </mat-card-content>
+    </mat-card>
+    }
+  }
+}

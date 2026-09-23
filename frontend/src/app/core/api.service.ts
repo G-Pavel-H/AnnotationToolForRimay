@@ -5,6 +5,7 @@ import {
   Adjudication,
   AgreementReport,
   Annotation,
+  CurationResponse,
   NonAtomicReport,
   Phase,
   PhasesResponse,
@@ -146,6 +147,20 @@ export class ApiService {
     let params = new HttpParams().set('status', status);
     if (phase && phase !== 'all') params = params.set('phase', phase);
     return this.http.get<NonAtomicReport>('/api/admin/non-atomic', { params });
+  }
+
+  getCuration(phase?: Phase | 'all'): Observable<CurationResponse> {
+    let params = new HttpParams();
+    if (phase && phase !== 'all') params = params.set('phase', phase);
+    return this.http.get<CurationResponse>('/api/admin/curation', { params });
+  }
+
+  /** Save (or clear, with an empty string) an admin revision of one conversion. */
+  saveRefinedRimay(annotationId: string, refinedRimay: string): Observable<{ annotation: Annotation }> {
+    return this.http.put<{ annotation: Annotation }>(
+      `/api/admin/annotations/${annotationId}/refined`,
+      { refinedRimay }
+    );
   }
 
   exportUrl(format: 'json' | 'csv', phase?: Phase | 'all'): string {

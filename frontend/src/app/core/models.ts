@@ -189,6 +189,44 @@ export interface NonAtomicReport {
   requirements: NonAtomicRequirement[];
 }
 
+// --- curation (admin refinement of annotator conversions) -------------------
+
+/** One annotator's conversion for a requirement, plus any admin revision. */
+export interface CurationAnnotation {
+  _id: string;
+  annotator: string;
+  rimayText: string;      // exactly as submitted — never modified
+  refinedRimay: string;   // admin revision; empty means "not revised"
+  refinedAt: string | null;
+  slots: Slots;
+  conditionType: ConditionType;
+  notes: string;
+}
+
+export interface CurationItem {
+  requirementId: string;
+  reqId: string;
+  phase: Phase;
+  nlText: string;
+  nlDescription: string;
+  annotations: CurationAnnotation[];
+  /** Reference model conversions, keyed by strategy. Null if not in the snapshot. */
+  llm: Record<string, string> | null;
+}
+
+export interface CurationResponse {
+  phase: Phase | null;
+  nTotal: number;
+  nNonAtomic: number;
+  items: CurationItem[];
+  llmMeta: {
+    source: string | null;
+    model: string | null;
+    strategies: string[];
+    copiedAt: string | null;
+  };
+}
+
 export const SLOT_FIELDS: Array<{ key: keyof Slots; label: string; mandatory: boolean }> = [
   { key: 'scope', label: 'Scope', mandatory: false },
   { key: 'condition', label: 'Condition', mandatory: false },

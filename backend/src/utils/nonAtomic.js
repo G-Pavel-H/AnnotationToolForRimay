@@ -19,8 +19,23 @@
 
 const { scopeRows, normalizeValue, SUBJECT_KEY, RATER_KEY } = require('./agreement');
 
-/** Export values are stringly typed; `nonAtomic` is a boolean at source. */
-const isFlagged = (raw) => normalizeValue(raw) === 'true';
+// Annotators did not all use the same signal for non-atomicity: one ticked the
+// checkbox, another wrote a `<NON_ATOMIC>` marker into the conversion text, and
+// reasons often appear only in the notes. Reading the checkbox alone under-counts
+// badly (15 of 50 instead of 20), so all three are honoured — the same rule the
+// offline filter in RQ1ConvertToRimay/scripts/make_atomic_gold.py applies, so the
+// tool and the experiment agree on which requirements are atomic.
+const TAG_RE = /<NON_ATOMIC>/i;
+const PROSE_RE = /non[- ]?atomic|split into|multiple requests|multiple (?:distinct|separate) /i;
+
+/** Which non-atomicity signals one annotation carries. */
+function signalsFor(row) {
+  const found = [];
+  if (normalizeValue(row.nonAtomic) === 'true') found.push('checkbox');
+  if (TAG_RE.test(row.rimayText || '')) found.push('tag');
+  if (PROSE_RE.test(row.notes || '')) found.push('notes');
+  return found;
+}
 
 /**
  * Build the report from analysis export rows.
@@ -47,8 +62,10 @@ function buildNonAtomicReport(exportRows, options = {}) {
         byRater: new Map(),
       });
     }
+    const signals = signalsFor(row);
     bySubject.get(key).byRater.set(row[RATER_KEY], {
-      nonAtomic: isFlagged(row.nonAtomic),
+      nonAtomic: signals.length > 0,
+      signals,
       nSystemResponses: row.nSystemResponses,
       notes: row.notes || '',
     });
@@ -63,6 +80,7 @@ function buildNonAtomicReport(exportRows, options = {}) {
       return {
         rater,
         nonAtomic: rating ? rating.nonAtomic : null,
+        signals: rating ? rating.signals : [],
         nSystemResponses: rating ? rating.nSystemResponses : null,
         notes: rating ? rating.notes : '',
       };
@@ -108,4 +126,4 @@ function buildNonAtomicReport(exportRows, options = {}) {
   };
 }
 
-module.exports = { buildNonAtomicReport };
+module.exports = { buildNonAtomicReport, signalsFor };
