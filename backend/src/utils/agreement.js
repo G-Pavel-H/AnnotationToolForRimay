@@ -50,7 +50,14 @@ const EXTRA_FIELDS = [
     categories: CONDITION_TYPES,
     note: 'only meaningful where a condition exists; computed over all rows',
   },
-  { field: 'nonAtomic', column: 'nonAtomic', categories: BOOLEAN_VALUES, note: 'binary' },
+  {
+    field: 'nonAtomic',
+    column: 'nonAtomic',
+    categories: BOOLEAN_VALUES,
+    note: 'binary; checkbox, <NON_ATOMIC> tag or notes (as the atomicity worksheet)',
+    // Required lazily: nonAtomic.js imports this module.
+    value: (row) => String(require('./nonAtomic').signalsFor(row).length > 0),
+  },
 ];
 
 const GOLD_COLUMNS = {
@@ -176,7 +183,7 @@ function collectRatings(rows, field, warnings) {
   rows.forEach((row) => {
     const subject = row[SUBJECT_KEY];
     const rater = row[RATER_KEY];
-    const value = normalizeValue(row[field.column]);
+    const value = field.value ? field.value(row) : normalizeValue(row[field.column]);
     if (!value) {
       warnings.push(`blank '${field.field}' for ${subject} / ${rater}; rating skipped`);
       return;

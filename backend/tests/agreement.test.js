@@ -213,3 +213,16 @@ test('buildAgreementReport: reproduces the committed pilot report', { skip: !fs.
     { value: 'implied', count: 1 },
   ]);
 });
+
+test('buildAgreementReport: nonAtomic counts the <NON_ATOMIC> tag and notes, not just the checkbox', () => {
+  const report = buildAgreementReport([
+    row('1-A', 'ann1', ALL_PRESENT, { nonAtomic: true }),
+    row('1-A', 'ann2', ALL_PRESENT, { rimayText: '<NON_ATOMIC>' }),
+    row('2-A', 'ann1', ALL_PRESENT),
+    row('2-A', 'ann2', ALL_PRESENT, { notes: 'Non atomic, two requests' }),
+    row('3-A', 'ann1', ALL_PRESENT),
+    row('3-A', 'ann2', ALL_PRESENT),
+  ]);
+  const nonAtomic = report.extras.find((r) => r.field === 'nonAtomic');
+  assert.deepEqual(nonAtomic.distribution, { true: 3, false: 3 });
+});
